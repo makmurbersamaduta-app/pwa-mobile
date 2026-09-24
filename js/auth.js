@@ -12,16 +12,34 @@ const SESSION_KEY = "pwa_mobile_session";
 const REMEMBER_KEY = "pwa_remember_username";
 
 // ===================================================
-// 2. EVENT LISTENER INITIALIZATION
+// 2. EVENT LISTENER FORM LOGIN & REVERSE GUARD
 // ===================================================
 document.addEventListener("DOMContentLoaded", () => {
-  const isLoginPage = window.location.pathname.endsWith("login.html") || window.location.pathname === "/";
+    const formLogin = document.getElementById("formLogin");
+    
+    // Cek apakah ada session aktif (dari Session Storage atau Local Storage 'Remember Me')
+    const activeSession = sessionStorage.getItem("erp_session") || localStorage.getItem("erp_session");
 
-  if (!isLoginPage) {
-    checkAuthGuard();
-  } else {
-    initLoginPageListeners();
-  }
+    // REVERSE GUARD: Jika user berada di halaman login.html TAPI sudah login
+    if (window.location.pathname.endsWith("login.html") || window.location.pathname === "/") {
+        if (activeSession) {
+            window.location.replace("index.html"); // Paksa kembali ke dashboard
+            return; // Hentikan eksekusi script login di bawahnya
+        }
+    } else {
+        // Panggil proteksi (Guard) standar jika user berada di luar halaman login
+        checkAuthGuard();
+    }
+
+    // Eksekusi Form Login jika user memang belum login
+    if (formLogin) {
+        formLogin.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const username = document.getElementById("usernameInput")?.value.trim() || document.getElementById("nikInput")?.value.trim();
+            const password = document.getElementById("passwordInput").value;
+            await handleLogin(username, password);
+        });
+    }
 });
 
 function initLoginPageListeners() {
