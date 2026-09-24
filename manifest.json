@@ -3,13 +3,13 @@
   "name": "DMB ERP Mobile System",
   "icons": [
     {
-      "src": "./assets/images/logo-dmb.jpg",
-      "type": "image/jpeg",
+      "src": "./assets/images/logo-dmb.png",
+      "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "./assets/images/logo-dmb.jpg",
-      "type": "image/jpeg",
+      "src": "./assets/images/logo-dmb.png",
+      "type": "image/png",
       "sizes": "512x512"
     }
   ],
