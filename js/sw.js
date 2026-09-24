@@ -1,5 +1,5 @@
 // File: sw.js
-const CACHE_NAME = 'pwa-mobile-v2';
+const CACHE_NAME = 'pwa-mobile-v3';
 
 // [GUNAKAN RELATIVE PATH AGAR COMPATIBLE DENGAN GITHUB PAGES]
 const ASSETS_TO_CACHE = [
