@@ -1,0 +1,242 @@
+/* File: css/style.css */
+/* ==========================================================================
+   1. CSS VARIABLES & DESIGN SYSTEM TOKENS
+   ========================================================================== */
+:root {
+  --primary-color: #0d6efd;
+  --primary-dark: #0a58ca;
+  --success-color: #10b981; /* Barang IN */
+  --warning-color: #f59e0b; /* Barang OUT / Alert */
+  --danger-color: #ef4444;  /* Error / Duplicate Warning */
+  --dark-color: #1e293b;   /* Cek Barang / Text Dark */
+  --bg-light: #f8fafc;
+  --card-bg: #ffffff;
+  --border-color: #e2e8f0;
+  --text-muted: #64748b;
+  --bottom-nav-height: 65px;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ==========================================================================
+   2. BASE & CONTAINER LAYOUT (MOBILE-FIRST)
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: #0f172a; /* Latar gelap luar untuk tampilan desktop */
+  color: #334155;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+}
+
+/* Container utama mensimulasikan layar Ponsel */
+.app-container {
+  width: 100%;
+  max-width: 480px;
+  background-color: var(--bg-light);
+  min-height: 100vh;
+  position: relative;
+  padding-bottom: calc(var(--bottom-nav-height) + 20px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  overflow-x: hidden;
+}
+
+/* ==========================================================================
+   3. TOP HEADER SECTION
+   ========================================================================== */
+.top-header {
+  background-color: var(--card-bg);
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.profile-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--primary-color);
+}
+
+.user-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--dark-color);
+  line-height: 1.2;
+}
+
+.user-status {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.header-action {
+  position: relative;
+  cursor: pointer;
+}
+
+.notification-bell {
+  font-size: 1.25rem;
+  color: var(--dark-color);
+}
+
+.badge-count {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  background-color: var(--danger-color);
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: bold;
+  padding: 2px 5px;
+  border-radius: 10px;
+  border: 2px solid var(--card-bg);
+}
+
+/* ==========================================================================
+   4. STICKY BOTTOM NAVIGATION BAR (DYNAMIC FILTERING)
+   ========================================================================== */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  max-width: 480px;
+  height: var(--bottom-nav-height);
+  background-color: var(--card-bg);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  border-top: 1px solid var(--border-color);
+  z-index: 1000;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.65rem;
+  font-weight: 500;
+  flex: 1;
+  height: 100%;
+  transition: all 0.2s ease;
+}
+
+.nav-item i {
+  font-size: 1.2rem;
+  margin-bottom: 3px;
+}
+
+.nav-item.active {
+  color: var(--primary-color);
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   5. UTILITY & MODAL STYLING (LOGIN, SISA WRAPPING, WARNINGS)
+   ========================================================================== */
+.card-widget {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.btn-custom {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.btn-success-custom {
+  background-color: var(--success-color);
+  color: #ffffff;
+}
+
+.btn-warning-custom {
+  background-color: var(--warning-color);
+  color: #ffffff;
+}
+
+.btn-dark-custom {
+  background-color: var(--dark-color);
+  color: #ffffff;
+}
+
+/* Sticky Warning Banner for Duplicate Stock Alert */
+.sticky-warning-banner {
+  position: sticky;
+  top: 0;
+  z-index: 1050;
+  background-color: #fff3cd;
+  color: #664d03;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-bottom: 2px solid #ffe69c;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Modal Popup Suggestion Box */
+.suggestion-box {
+  position: absolute;
+  width: 100%;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 0 0 8px 8px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.suggestion-item {
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+}
+
+.suggestion-item:hover {
+  background-color: #f8fafc;
+}
+
+/* Input Upper Case Styling */
+.input-uppercase {
+  text-transform: uppercase;
+}

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DMB ERP System - Login PWA</title>
+  
+  <!-- App Manifest & Theme -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0d6efd">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  
+  <!-- FontAwesome & Custom Style -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="css/style.css">
+
+  <style>
+    /* Styling Tambahan Khusus Layout Card Login Mobile */
+    .login-wrapper {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px 16px;
+      background-color: var(--bg-light);
+    }
+    .login-card {
+      width: 100%;
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 28px 20px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    }
+    .login-brand {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .login-brand img {
+      height: 65px;
+      width: auto;
+      object-fit: contain;
+      margin-bottom: 12px;
+    }
+    .login-brand h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--dark-color);
+      letter-spacing: 0.5px;
+    }
+    .form-group {
+      margin-bottom: 18px;
+      position: relative;
+    }
+    .form-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--dark-color);
+      margin-bottom: 6px;
+    }
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .input-icon {
+      position: absolute;
+      left: 12px;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+    .form-input {
+      width: 100%;
+      padding: 12px 12px 12px 38px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+    .form-input:focus {
+      border-color: var(--primary-color);
+    }
+    .toggle-password {
+      position: absolute;
+      right: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      font-size: 0.95rem;
+    }
+    .form-options {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+      font-size: 0.78rem;
+    }
+    .remember-me {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--dark-color);
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .remember-me input {
+      cursor: pointer;
+      accent-color: var(--primary-color);
+    }
+    .help-link {
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .alert-message {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: none;
+      background-color: #fef2f2;
+      color: var(--danger-color);
+      border: 1px solid #fecaca;
+    }
+    .login-footer {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Modal Popup UI */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(15, 23, 42, 0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      padding: 16px;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease;
+    }
+    .modal-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+    .modal-card {
+      background: #ffffff;
+      width: 100%;
+      max-width: 400px;
+      border-radius: 14px;
+      padding: 22px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .modal-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--dark-color);
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .modal-body {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <div class="login-wrapper">
+      
+      <!-- Card Login Utama -->
+      <div class="login-card">
+        
+        <!-- Header Brand Logo -->
+        <div class="login-brand">
+          <img src="assets/images/logo-dmb.jpg" alt="Logo DMB" onerror="this.style.display='none'">
+          <h1>DMB ERP SYSTEM</h1>
+        </div>
+
+        <!-- Alert Container -->
+        <div id="alertContainer" class="alert-message"></div>
+
+        <!-- Form Login -->
+        <form id="formLogin">
+          <!-- Field 1: Username / NIK -->
+          <div class="form-group">
+            <label class="form-label" for="usernameInput">Username / NIK Karyawan</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-id-card input-icon"></i>
+              <input type="text" id="usernameInput" class="form-input input-uppercase" placeholder="Contoh: DMB11001" required autocomplete="off">
+            </div>
+          </div>
+
+          <!-- Field 2: Password -->
+          <div class="form-group">
+            <label class="form-label" for="passwordInput">Password</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-lock input-icon"></i>
+              <input type="password" id="passwordInput" class="form-input" placeholder="******" required>
+              <i class="fa-solid fa-eye toggle-password" id="btnTogglePassword" title="Lihat/Sembunyikan Password"></i>
+            </div>
+          </div>
+
+          <!-- Field 3: Remember Me & Help -->
+          <div class="form-options">
+            <label class="remember-me">
+              <input type="checkbox" id="rememberMeCheck"> Ingat Saya
+            </label>
+            <span class="help-link" id="btnOpenHelpModal">Lupa Password?</span>
+          </div>
+
+          <!-- Button Utama -->
+          <button type="submit" id="btnLogin" class="btn-custom btn-dark-custom">
+            <span id="btnText">Masuk Ke Sistem</span>
+            <i id="btnSpinner" class="fa-solid fa-spinner fa-spin" style="display: none;"></i>
+          </button>
+        </form>
+
+        <!-- Footer Info -->
+        <div class="login-footer">
+          PT. Duta Makmur Bersama<br>DMB.ERP Version 1.0.0
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Popup 1: Request Reset Password / Help -->
+  <div class="modal-overlay" id="helpModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-headset text-primary me-2"></i>Bantuan Reset Password</h3>
+        <button class="modal-close" id="btnCloseHelpModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 12px;">Untuk meminta reset password akun Anda, silakan hubungi Supervisor Area atau Admin HRD terdekat untuk diteruskan ke Web ERP Admin.</p>
+        <div style="background: var(--bg-light); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+          <strong>Pusat Bantuan ERP:</strong><br>
+          <i class="fa-solid fa-phone-volume me-1 text-muted"></i> Hotline HRD: 0812-xxxx-xxxx<br>
+          <i class="fa-solid fa-building me-1 text-muted"></i> Ruangan Admin Operational Central
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Popup 2: Force Change Password Modal (Terpemicu jika must_change_password == true) -->
+  <div class="modal-overlay" id="forceChangeModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" style="color: var(--warning-color);"><i class="fa-solid fa-key me-2"></i>Buat Password Baru Anda</h3>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 14px;">Password Anda telah direset oleh Admin. Silakan buat password baru sebelum melanjutkan ke sistem[cite: 2].</p>
+        <form id="formForceChange">
+          <div class="form-group">
+            <label class="form-label" for="newPasswordInput">Password Baru</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-lock input-icon"></i>
+              <input type="password" id="newPasswordInput" class="form-input" placeholder="Minimal 6 Karakter" required minlength="6">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="confirmPasswordInput">Konfirmasi Password Baru</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-shield-halved input-icon"></i>
+              <input type="password" id="confirmPasswordInput" class="form-input" placeholder="Ulangi Password Baru" required minlength="6">
+            </div>
+          </div>
+          <button type="submit" id="btnSaveNewPassword" class="btn-custom btn-success-custom">
+            <span id="btnSaveText">Simpan Password Baru</span>
+            <i id="btnSaveSpinner" class="fa-solid fa-spinner fa-spin" style="display: none;"></i>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Supabase JS CDN Client v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Main Auth Script -->
+  <script src="js/auth.js"></script>
+  <script>
+  if ('serviceWorker' in navigator) {
+    // Gunakan relative path './sw.js' agar cocok dengan arsitektur GitHub Pages
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('Service Worker Registered (Login):', reg))
+      .catch(err => console.error('Service Worker Error (Login):', err));
+  }
+</script>
+</body>
+</html>

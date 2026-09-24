@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DMB ERP - Sisa Wrapping</title>
+
+  <!-- PWA Theme & Favicon -->
+  <meta name="theme-color" content="#0d6efd">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+
+  <!-- FontAwesome 6 & CSS Tokens -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="../css/style.css">
+
+  <style>
+    /* Custom Styling Khusus Modul Sisa Wrapping */
+    .module-header {
+      background: var(--card-bg);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    .btn-back {
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      color: var(--dark-color);
+      cursor: pointer;
+    }
+    .module-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--dark-color);
+    }
+    
+    /* Dashboard Buttons Section */
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      padding: 16px;
+    }
+    .btn-action-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 12px;
+      border-radius: 16px;
+      color: #ffffff;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transition: transform 0.15s ease;
+    }
+    .btn-action-card:active {
+      transform: scale(0.96);
+    }
+    .btn-action-card i {
+      font-size: 2.2rem;
+      margin-bottom: 8px;
+    }
+    .btn-action-card span {
+      font-size: 0.9rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+    .btn-in {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+    .btn-out {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    }
+
+    .check-container {
+      padding: 0 16px 16px 16px;
+    }
+    .btn-check-item {
+      width: 100%;
+      padding: 16px;
+      background-color: var(--dark-color);
+      color: #ffffff;
+      border: none;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(30, 41, 59, 0.2);
+    }
+
+    /* Form & Field Styling inside Modal */
+    .form-group-custom {
+      margin-bottom: 14px;
+      position: relative;
+    }
+    .form-label-custom {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--dark-color);
+      margin-bottom: 4px;
+    }
+    .form-input-custom {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    .form-input-custom[readonly] {
+      background-color: #f1f5f9;
+      color: var(--text-muted);
+    }
+
+    /* Modal Layout Overrides */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease;
+    }
+    .modal-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+    .modal-sheet {
+      background: #ffffff;
+      width: 100%;
+      max-width: 480px;
+      border-radius: 20px 20px 0 0;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 20px 16px;
+      position: relative;
+      animation: slideUp 0.25s ease-out;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    /* Scanner Wrapper */
+    #qr-reader {
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+    }
+
+    /* Results Card Display */
+    .result-item-card {
+      background: var(--bg-light);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .item-thumbnail {
+      width: 60px;
+      height: 60px;
+      border-radius: 8px;
+      object-fit: cover;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Top Navigation Header -->
+    <header class="module-header">
+      <button class="btn-back" onclick="window.location.href='../index.html'">
+        <i class="fa-solid fa-arrow-left"></i>
+      </button>
+      <div class="module-title">Laporan Sisa Wrapping</div>
+    </header>
+
+    <!-- Main Dashboard Action Buttons -->
+    <main>
+      <section class="action-grid">
+        <button class="btn-action-card btn-in" id="btnOpenModalIn">
+          <i class="fa-solid fa-box-archive"></i>
+          <span>BARANG IN</span>
+        </button>
+        <button class="btn-action-card btn-out" id="btnOpenScannerOut">
+          <i class="fa-solid fa-qrcode"></i>
+          <span>BARANG OUT</span>
+        </button>
+      </section>
+
+      <section class="check-container">
+        <button class="btn-check-item" id="btnOpenModalSearch">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <span>CEK / CARI BARANG</span>
+        </button>
+      </section>
+    </main>
+
+  </div>
+
+  <!-- =================================================== -->
+  <!-- MODAL 1: PROSES BARANG IN                           -->
+  <!-- =================================================== -->
+  <div class="modal-overlay" id="modalIn">
+    <div class="modal-sheet">
+      <!-- Live Sticky Warning Banner -->
+      <div id="stickyWarningBanner" class="sticky-warning-banner" style="display: none;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span id="lblWarningText">PERINGATAN: Kode artikel ini masih memiliki barang berstatus AKTIF di gudang!</span>
+      </div>
+
+      <!-- FIX 2: Perbaikan CSS Style space-between -->
+      <div class="modal-header" style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 16px;">
+        <h3 class="modal-title"><i class="fa-solid fa-box-archive text-success me-2"></i>Form Transaksi Barang IN</h3>
+        <button class="modal-close" onclick="closeModal('modalIn')" style="background:none; border:none; font-size:1.2rem; cursor:pointer;">&times;</button>
+      </div>
+
+      <form id="formBarangIn">
+        <div class="form-group-custom">
+          <label class="form-label-custom">Tanggal Masuk</label>
+          <input type="text" id="inTanggalMasuk" class="form-input-custom" readonly>
+        </div>
+
+        <div class="form-group-custom" style="position: relative;">
+          <label class="form-label-custom">Kode Artikel <span class="text-danger">*</span></label>
+          <input type="text" id="inKodeArtikel" class="form-input-custom input-uppercase" placeholder="Ketik Kode Artikel..." required autocomplete="off">
+          <!-- Suggestion Box Popup -->
+          <div id="suggestionBox" class="suggestion-box" style="display: none;"></div>
+        </div>
+
+        <div class="form-group-custom">
+          <label class="form-label-custom">Nama Barang (Readonly)</label>
+          <input type="text" id="inNamaBarang" class="form-input-custom" placeholder="Terisi otomatis..." readonly>
+        </div>
+
+        <div class="form-group-custom">
+          <label class="form-label-custom">Customer (Readonly)</label>
+          <input type="text" id="inCustomer" class="form-input-custom" placeholder="Terisi otomatis..." readonly>
+        </div>
+
+        <div class="form-group-custom">
+          <label class="form-label-custom">Batch Number <span class="text-danger">*</span></label>
+          <input type="text" id="inBatchNumber" class="form-input-custom input-uppercase" placeholder="Contoh: A/3/33/26" required>
+        </div>
+
+        <div class="form-group-custom">
+          <label class="form-label-custom">Qty / Jumlah <span class="text-danger">*</span></label>
+          <input type="text" id="inQty" class="form-input-custom" inputmode="numeric" placeholder="0" required>
+        </div>
+
+        <div class="form-group-custom">
+          <label class="form-label-custom">Shift Masuk <span class="text-danger">*</span></label>
+          <select id="inShift" class="form-input-custom" required>
+            <option value="">-- Pilih Shift --</option>
+            <option value="1 (Satu)">1 (Satu)</option>
+            <option value="2 (Dua)">2 (Dua)</option>
+            <option value="3 (Tiga)">3 (Tiga)</option>
+          </select>
+        </div>
+
+        <div class="form-group-custom">
+          <label class="form-label-custom">Petugas Input</label>
+          <input type="text" id="inPetugas" class="form-input-custom" readonly>
+        </div>
+
+        <div class="form-group-custom">
+          <label class="form-label-custom">Foto Barang (Kamera) <span class="text-danger">*</span></label>
+          <input type="file" id="inFotoInput" class="form-input-custom" accept="image/*" capture="environment" required>
+        </div>
+
+        <button type="submit" id="btnSubmitIn" class="btn-custom btn-success-custom" style="margin-top: 10px;">
+          <span id="btnSubmitInText">Simpan Barang IN</span>
+          <i id="btnSubmitInSpinner" class="fa-solid fa-spinner fa-spin" style="display: none;"></i>
+        </button>
+      </form>
+    </div> <!-- FIX 1: Penutup modal-sheet -->
+  </div> <!-- FIX 1: Penutup modal-overlay -->
+
+  <!-- =================================================== -->
+  <!-- MODAL 2: CAMERA SCANNER & FORM OUT                  -->
+  <!-- =================================================== -->
+  <div class="modal-overlay" id="modalOut">
+    <div class="modal-sheet">
+      <!-- FIX 2: Perbaikan CSS Style space-between -->
+      <div class="modal-header" style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 14px;">
+        <h3 class="modal-title"><i class="fa-solid fa-qrcode text-warning me-2"></i>Scan Barcode / QR Barang OUT</h3>
+        <button class="modal-close" onclick="closeModalOut()" style="background:none; border:none; font-size:1.2rem; cursor:pointer;">&times;</button>
+      </div>
+
+      <!-- Video Stream Reader Container -->
+      <div id="scannerSection">
+        <div id="qr-reader"></div>
+        <p style="text-align: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">Arahkan kamera ke Barcode / QR Code pada barang sisa wrapping.</p>
+      </div>
+
+      <!-- Form Konfirmasi OUT (Readonly Except Shift) -->
+      <form id="formConfirmOut" style="display: none; margin-top: 10px;">
+        <input type="hidden" id="outRowId">
+
+        <div class="form-group-custom">
+          <label class="form-label-custom">Kode Artikel</label>
+          <input type="text" id="outKodeArtikel" class="form-input-custom" readonly>
+        </div>
+        <div class="form-group-custom">
+          <label class="form-label-custom">Nama Barang & Customer</label>
+          <input type="text" id="outNamaCustomer" class="form-input-custom" readonly>
+        </div>
+        <div class="form-group-custom">
+          <label class="form-label-custom">Batch & Qty</label>
+          <input type="text" id="outBatchQty" class="form-input-custom" readonly>
+        </div>
+        <div class="form-group-custom">
+          <label class="form-label-custom">Petugas OUT</label>
+          <input type="text" id="outPetugas" class="form-input-custom" readonly>
+        </div>
+
+        <div class="form-group-custom">
+          <label class="form-label-custom">Shift Keluar <span class="text-danger">*</span></label>
+          <select id="outShift" class="form-input-custom" required>
+            <option value="">-- Pilih Shift Keluar --</option>
+            <option value="1 (Satu)">1 (Satu)</option>
+            <option value="2 (Dua)">2 (Dua)</option>
+            <option value="3 (Tiga)">3 (Tiga)</option>
+          </select>
+        </div>
+
+        <div class="form-group-custom">
+          <label class="form-label-custom">Preview Foto Barang</label>
+          <img id="outPreviewImg" src="" alt="Foto Awal" style="width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px;">
+        </div>
+
+        <button type="submit" id="btnSubmitOut" class="btn-custom btn-warning-custom" style="margin-top: 10px;">
+          <span id="btnSubmitOutText">Proses Barang OUT</span>
+          <i id="btnSubmitOutSpinner" class="fa-solid fa-spinner fa-spin" style="display: none;"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- =================================================== -->
+  <!-- MODAL 3: CEK / CARI BARANG (SEARCH RESULTS)         -->
+  <!-- =================================================== -->
+  <div class="modal-overlay" id="modalSearch">
+    <div class="modal-sheet">
+      <!-- FIX 2: Perbaikan CSS Style space-between -->
+      <div class="modal-header" style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 14px;">
+        <h3 class="modal-title"><i class="fa-solid fa-magnifying-glass me-2"></i>Cek Stok Sisa Wrapping</h3>
+        <button class="modal-close" onclick="closeModal('modalSearch')" style="background:none; border:none; font-size:1.2rem; cursor:pointer;">&times;</button>
+      </div>
+
+      <!-- MODAL 3: CEK / CARI BARANG -->
+      <div class="form-group-custom" style="display: flex; gap: 8px; position: relative;">
+        <div style="position: relative; flex: 1;">
+          <input type="text" id="searchKeyword" class="form-input-custom input-uppercase" placeholder="Masukkan Kode Artikel..." autocomplete="off">
+          <!-- Suggestion Box Popup untuk Cari Barang -->
+          <div id="searchSuggestionBox" class="suggestion-box" style="display: none; top: 100%; width: 100%;"></div>
+        </div>
+        <button type="button" id="btnExecuteSearch" class="btn-custom btn-dark-custom" style="width: auto; padding: 0 16px;">Cari</button>
+      </div>
+
+      <!-- Container Result -->
+      <div id="searchResultsContainer" style="margin-top: 16px; max-height: 50vh; overflow-y: auto;">
+        <p style="text-align: center; color: var(--text-muted); font-size: 0.8rem;">Silakan masukkan kode artikel untuk mencari stok aktif.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================================================== -->
+  <!-- MODAL 4: FULL IMAGE PREVIEW                         -->
+  <!-- =================================================== -->
+  <div class="modal-overlay" id="modalImagePreview" onclick="closeModal('modalImagePreview')">
+    <div style="max-width: 90%; max-height: 80vh;">
+      <img id="fullImageTarget" src="" alt="Full Preview" style="width: 100%; height: auto; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+    </div>
+  </div>
+
+ <!-- External Library JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  
+  <!-- 1. Konfigurasi Client Supabase -->
+  <script src="../js/supabase.js"></script>
+  
+  <!-- 2. Main Module Logic -->
+  <script src="../js/wrapping.js"></script>
+</body>
+</html>
+</body>
+</html>

@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DMB ERP Mobile - Beranda</title>
+
+  <!-- PWA Manifest & Theme Color -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0d6efd">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+
+  <!-- FontAwesome 6 & Styling Utama -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="css/style.css">
+
+  <style>
+    /* Styling Spesifik Komponen Halaman Beranda (Home) */
+    .shift-widget {
+      background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+      color: #ffffff;
+      border-radius: 14px;
+      padding: 18px;
+      margin: 16px;
+      box-shadow: 0 4px 15px rgba(13, 110, 253, 0.25);
+    }
+    .shift-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .shift-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.85;
+      font-weight: 600;
+    }
+    .shift-time {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .shift-badge {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      backdrop-filter: blur(4px);
+    }
+    .clock-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn-clock {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-weight: 700;
+      font-size: 0.82rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: opacity 0.2s;
+    }
+    .btn-clock-in {
+      background-color: #ffffff;
+      color: var(--primary-dark);
+    }
+    .btn-clock-out {
+      background-color: rgba(255, 255, 255, 0.15);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    /* Quick Access Grid Menu */
+    .quick-access-section {
+      padding: 0 16px;
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--dark-color);
+      margin-bottom: 12px;
+    }
+    .grid-menu {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .grid-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-decoration: none;
+      color: var(--dark-color);
+      background: var(--card-bg);
+      padding: 12px 6px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      transition: transform 0.15s ease;
+    }
+    .grid-item:active {
+      transform: scale(0.95);
+    }
+    .grid-icon-wrapper {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.15rem;
+      margin-bottom: 8px;
+    }
+    .grid-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-align: center;
+      line-height: 1.2;
+    }
+
+    /* Operational Feed Section */
+    .feed-section {
+      padding: 0 16px;
+    }
+    .feed-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border-color);
+    }
+    .feed-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .feed-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      text-transform: uppercase;
+    }
+    .feed-time {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+    .feed-body {
+      font-size: 0.82rem;
+      color: var(--dark-color);
+      font-weight: 600;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Container Utama Ponsel (Mobile Responsive Container) -->
+  <div class="app-container">
+
+    <!-- Top Header Section -->
+    <header class="top-header">
+      <div class="profile-info">
+        <img src="assets/images/logo-dmb.jpg" alt="Foto Profil" class="profile-avatar" id="headerAvatar" onerror="this.src='https://via.placeholder.com/40'">
+        <div>
+          <div class="user-name" id="lblUserName">Nama Karyawan</div>
+          <div class="user-status" id="lblUserRole">Status Shift: Shift Regular</div>
+        </div>
+      </div>
+      <div class="header-action" id="btnInbox" title="Buka Inbox">
+        <i class="fa-solid fa-bell notification-bell"></i>
+        <span class="badge-count" id="lblNotificationCount">3</span>
+      </div>
+    </header>
+
+    <!-- Floating Widget Shift & Absensi Hari Ini -->
+    <section class="shift-widget">
+      <div class="shift-info">
+        <div>
+          <div class="shift-title">Jadwal Shift Hari Ini</div>
+          <div class="shift-time" id="lblShiftInfo">SHREGULAR - 08:00 s/d 16:00</div>
+        </div>
+        <span class="shift-badge" id="lblShiftStatus"><i class="fa-solid fa-circle-check me-1"></i>Tepat Waktu</span>
+      </div>
+      <div class="clock-actions">
+        <button class="btn-clock btn-clock-in" onclick="handleClockIn()">
+          <i class="fa-solid fa-right-to-bracket"></i> Clock In
+        </button>
+        <button class="btn-clock btn-clock-out" onclick="handleClockOut()">
+          <i class="fa-solid fa-right-from-bracket"></i> Clock Out
+        </button>
+      </div>
+    </section>
+
+    <!-- Grid Quick Access Section -->
+    <section class="quick-access-section">
+      <div class="section-title">Akses Cepat Menu</div>
+      <div class="grid-menu" id="quickAccessGrid">
+        <!-- Grid item akan dirender dinamis via JavaScript -->
+      </div>
+    </section>
+
+    <!-- Operational Summary Feed (Data Dummy Operational & Managerial Summary) -->
+    <section class="feed-section">
+      <div class="section-title">Operational Summary Feed</div>
+
+      <div class="feed-card">
+        <div class="feed-header">
+          <span class="feed-tag"><i class="fa-solid fa-shield-halved me-1"></i> Patroli Security</span>
+          <span class="feed-time">Hari Ini, 07:30</span>
+        </div>
+        <div class="feed-body">
+          Ringkasan Patroli Hari Ini: 4/4 Zona Selesai dikontrol tanpa temuan insiden.
+        </div>
+      </div>
+
+      <div class="feed-card">
+        <div class="feed-header">
+          <span class="feed-tag" style="color: var(--success-color);"><i class="fa-solid fa-box-archive me-1"></i> Sisa Wrapping</span>
+          <span class="feed-time">Hari Ini, 07:15</span>
+        </div>
+        <div class="feed-body">
+          Ringkasan Stok Aktif Sisa Wrapping: 120 Roll tersedia di area gudang transit.
+        </div>
+      </div>
+    </section>
+
+    <!-- Sticky Bottom Navigation Bar (Dynamic Filtering) -->
+    <nav class="bottom-nav" id="bottomNav">
+      <!-- Menu Item Bawah akan dirender secara dinamis oleh JavaScript berdasarkan Profil/Skenario User -->
+    </nav>
+
+  </div>
+
+  <!-- Pendaftaran Service Worker Dasar -->
+  <script>
+    if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js')
+    .then(reg => console.log('Service Worker Registered:', reg))
+    .catch(err => console.error('Service Worker Error:', err));
+}
+  </script>
+
+  <!-- Supabase JS CDN Client v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Skrip Auth Guard & Session Checking -->
+  <script src="js/auth.js"></script>
+
+  <!-- Skrip Logika Dinamis Dashboard Home -->
+  <script>
+    // ===================================================
+    // 1. SIMULASI DATA USER / SKENARIO PROFILE HAK AKSES
+    // ===================================================
+    // KETENTUAN SKENARIO UNTUK PENGUJIAN TAMPILAN:
+    // Skenario A: { entitas: 'DMB', departemen: 'FINANCE' } -> 4 Ikon Menu (Home, Company Report, Akun)
+    // Skenario B: { entitas: 'PT. Sentralindo Teguh Gemilang', departemen: 'LABOUR SUPPLY' } -> 5 Ikon Menu (Home, OMS, Sisa Wrapping, Company Report, Akun)
+    // Skenario C: { entitas: 'PT. Sentralindo Teguh Gemilang', departemen: 'LABOUR SUPPLY & SECURITY' } -> 6 Ikon Menu (Home, Patroli, OMS, Sisa Wrapping, Company Report, Akun)
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // Load Data Sesi yang Tersimpan (Atau gunakan Dummy jika belum login)
+      const sessionDataRaw = localStorage.getItem("pwa_mobile_session") || sessionStorage.getItem("pwa_mobile_session");
+      
+      let currentUser = null;
+      if (sessionDataRaw) {
+        currentUser = JSON.parse(sessionDataRaw);
+      } else {
+        // Fallback Simulasi Data Skenario C (Lengkap) jika dijalankan tanpa login
+        currentUser = {
+          fullName: "Budi Santoso",
+          username: "DMB11001",
+          entitas: "PT. Sentralindo Teguh Gemilang",
+          departemen: "LABOUR SUPPLY & SECURITY",
+          shiftName: "SHREGULAR - 08:00 s/d 16:00"
+        };
+      }
+
+      // 2. Render Profile Header
+      document.getElementById("lblUserName").innerText = currentUser.fullName || currentUser.username;
+      document.getElementById("lblUserRole").innerText = `Area: ${currentUser.entitas || 'PT. DMB'}`;
+
+      // 3. Render Bottom Navigation Bar & Quick Access Grid Secara Dinamis
+      renderDynamicNavigation(currentUser);
+    });
+
+    // ===================================================
+    // 2. LOGIKA RENDER DYNAMIC NAVIGATION & QUICK ACCESS
+    // ===================================================
+    // File: index.html (Potongan Logika Render Navigasi)
+
+function renderDynamicNavigation(user) {
+  const bottomNav = document.getElementById("bottomNav");
+  const quickAccessGrid = document.getElementById("quickAccessGrid");
+
+  // Daftar Master Menu PWA
+  const allMenus = {
+    home: { id: 'home', label: 'Home', icon: 'fa-house', link: 'index.html', bgIcon: '#e0f2fe', colorIcon: '#0284c7' },
+    patroli: { id: 'patroli', label: 'Patroli', icon: 'fa-shield-halved', link: '#', bgIcon: '#fef3c7', colorIcon: '#d97706' },
+    oms: { id: 'oms', label: 'OMS', icon: 'fa-cubes', link: '#', bgIcon: '#f3e8ff', colorIcon: '#9333ea' },
+    wrapping: { id: 'wrapping', label: 'Sisa Wrapping', icon: 'fa-box-archive', link: 'pages/wrapping.html', bgIcon: '#dcfce7', colorIcon: '#16a34a' },
+    report: { id: 'report', label: 'Report', icon: 'fa-chart-pie', link: '#', bgIcon: '#ffe4e6', colorIcon: '#e11d48' },
+    account: { id: 'account', label: 'Akun', icon: 'fa-user', link: '#', bgIcon: '#f1f5f9', colorIcon: '#475569' }
+  };
+
+  let activeNavKeys = [];
+
+  // ========================================================
+  // RULE 1: BYPASS AKSES MAINTENANCE / SUPERADMIN (Role ID 1)
+  // ========================================================
+  if (user.roleId === 1) {
+    // Munculkan SELURUH Ikon Menu
+    activeNavKeys = ['home', 'patroli', 'oms', 'wrapping', 'report', 'account'];
+  } 
+  // ========================================================
+  // RULE 2: FILTER DEPARTEMEN NORMAL (Simulasi dummy)
+  // ========================================================
+  else {
+    activeNavKeys = ['home', 'report', 'account']; // Default General
+
+    // Karena depId kini berupa ID Integer, validasi menggunakan angka ID Departemen 
+    // (Misal: 5 = Labour Supply, 6 = Labour Supply & Security)
+    const isSTG = user.areaId === 2; // Contoh: ID 2 adalah Area STG
+    const isLabourSupply = user.depId === 5; 
+    const isSecurity = user.depId === 6; 
+
+    if (isSTG && isSecurity) {
+      activeNavKeys = ['home', 'patroli', 'oms', 'wrapping', 'report', 'account'];
+    } else if (isSTG && isLabourSupply) {
+      activeNavKeys = ['home', 'oms', 'wrapping', 'report', 'account'];
+    }
+  }
+
+  // Render HTML Dynamic Bottom Navigation Bar
+  let navHtml = "";
+  activeNavKeys.forEach(key => {
+    const item = allMenus[key];
+    const isActive = key === 'home' ? 'active' : '';
+    navHtml += `
+      <a href="${item.link}" class="nav-item ${isActive}">
+        <i class="fa-solid ${item.icon}"></i>
+        <span>${item.label}</span>
+      </a>
+    `;
+  });
+  bottomNav.innerHTML = navHtml;
+
+  // Render HTML Dynamic Quick Access Grid
+  let gridHtml = "";
+  activeNavKeys.forEach(key => {
+    const item = allMenus[key];
+    gridHtml += `
+      <a href="${item.link}" class="grid-item">
+        <div class="grid-icon-wrapper" style="background-color: ${item.bgIcon}; color: ${item.colorIcon};">
+          <i class="fa-solid ${item.icon}"></i>
+        </div>
+        <span class="grid-label">${item.label}</span>
+      </a>
+    `;
+  });
+  quickAccessGrid.innerHTML = gridHtml;
+}
+
+    // ===================================================
+    // 3. FUNGSI ACTION CLOCK IN & CLOCK OUT
+    // ===================================================
+    function handleClockIn() {
+      alert("✅ Berhasil Clock In pada pukul " + new Date().toLocaleTimeString('id-ID'));
+    }
+
+    function handleClockOut() {
+      if (confirm("Apakah Anda yakin ingin melakukan Clock Out sekarang?")) {
+        alert("✅ Berhasil Clock Out pada pukul " + new Date().toLocaleTimeString('id-ID'));
+      }
+    }
+  </script>
+</body>
+</html>
