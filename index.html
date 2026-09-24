@@ -241,13 +241,15 @@
   </div>
 
   <!-- Pendaftaran Service Worker Dasar -->
-  <script>
-    if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js')
-    .then(reg => console.log('Service Worker Registered:', reg))
-    .catch(err => console.error('Service Worker Error:', err));
-}
-  </script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then((reg) => console.log('[Service Worker] Terdaftar:', reg.scope))
+        .catch((err) => console.error('[Service Worker] Gagal:', err));
+    });
+  }
+</script>
 
   <!-- Supabase JS CDN Client v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
