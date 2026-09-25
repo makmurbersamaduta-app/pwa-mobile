@@ -1,265 +1,299 @@
 // File: js/auth.js
 
-// ===================================================
-// 1. KONFIGURASI SUPABASE CLIENT & KONSTANTA
-// ===================================================
-const SUPABASE_URL = "https://gkqxzxwiawfpjtnzexvq.supabase.co"; // URL Supabase Anda
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdrcXh6eHdpYXdmcGp0bnpleHZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MzI0MzksImV4cCI6MjEwMDIwODQzOX0.tFjGOY1z35tMZi0re-oYlIF9yXxa9-8uYtKBBYmwpm8"; // Isi Anon Key Supabase Anda
-
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const SYNTHETIC_DOMAIN = "@supabase.mail";
 const SESSION_KEY = "pwa_mobile_session";
-const REMEMBER_KEY = "pwa_remember_username";
+const REMEMBER_KEY = "pwa_mobile_remember";
+const SYNTHETIC_DOMAIN = "@company.internal";
 
-// ===================================================
-// 2. EVENT LISTENER FORM LOGIN & REVERSE GUARD
-// ===================================================
 document.addEventListener("DOMContentLoaded", () => {
-    const formLogin = document.getElementById("formLogin");
+    // ---------------------------------------------------------
+    // 1. REVERSE GUARD & PATH CHECKING (Perbaikan Bug Desktop)
+    // ---------------------------------------------------------
+    const activeSession = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
+    const currentPath = window.location.pathname.toLowerCase();
     
-    // Cek apakah ada session aktif (dari Session Storage atau Local Storage 'Remember Me')
-    const activeSession = sessionStorage.getItem("erp_session") || localStorage.getItem("erp_session");
+    // Mendeteksi apakah user sedang berada di halaman login (mendukung GitHub Pages sub-folder)
+    const isLoginPage = currentPath.endsWith("login.html") || currentPath.endsWith("/pwa-mobile/") || currentPath === "/";
 
-    // REVERSE GUARD: Jika user berada di halaman login.html TAPI sudah login
-    if (window.location.pathname.endsWith("login.html") || window.location.pathname === "/") {
+    if (isLoginPage) {
         if (activeSession) {
-            window.location.replace("index.html"); // Paksa kembali ke dashboard
-            return; // Hentikan eksekusi script login di bawahnya
+            // Jika sudah login tapi ada di halaman login, paksa ke dashboard
+            window.location.replace("index.html");
+            return;
         }
     } else {
-        // Panggil proteksi (Guard) standar jika user berada di luar halaman login
+        // Jika berada di halaman lain, pastikan sesi aktif
         checkAuthGuard();
     }
 
-    // Eksekusi Form Login jika user memang belum login
+    // ---------------------------------------------------------
+    // 2. TOGGLE LIHAT PASSWORD (Perbaikan Bug 1)
+    // ---------------------------------------------------------
+    const togglePasswordBtn = document.getElementById("togglePassword");
+    const passwordInput = document.getElementById("passwordInput");
+    
+    if (togglePasswordBtn && passwordInput) {
+        togglePasswordBtn.addEventListener("click", function () {
+            const type = passwordInput.getAttribute("type") === "password" ? "text" : "password";
+            passwordInput.setAttribute("type", type);
+            
+            // Toggle icon (Asumsi menggunakan FontAwesome fa-eye / fa-eye-slash)
+            if (this.classList.contains("fa-eye")) {
+                this.classList.remove("fa-eye");
+                this.classList.add("fa-eye-slash");
+            } else {
+                this.classList.remove("fa-eye-slash");
+                this.classList.add("fa-eye");
+            }
+        });
+    }
+
+    // =========================================================
+// FITUR TOGGLE LIHAT PASSWORD (MODAL GANTI PASSWORD)
+// =========================================================
+const toggleNewPasswordBtn = document.getElementById("toggleNewPassword");
+const newPasswordInput = document.getElementById("newPasswordInput");
+
+if (toggleNewPasswordBtn && newPasswordInput) {
+    toggleNewPasswordBtn.addEventListener("click", function () {
+        const type = newPasswordInput.getAttribute("type") === "password" ? "text" : "password";
+        newPasswordInput.setAttribute("type", type);
+        this.classList.toggle("fa-eye");
+        this.classList.toggle("fa-eye-slash");
+    });
+}
+
+const toggleConfirmPasswordBtn = document.getElementById("toggleConfirmPassword");
+const confirmPasswordInput = document.getElementById("confirmPasswordInput");
+
+if (toggleConfirmPasswordBtn && confirmPasswordInput) {
+    toggleConfirmPasswordBtn.addEventListener("click", function () {
+        const type = confirmPasswordInput.getAttribute("type") === "password" ? "text" : "password";
+        confirmPasswordInput.setAttribute("type", type);
+        this.classList.toggle("fa-eye");
+        this.classList.toggle("fa-eye-slash");
+    });
+}
+
+    // ---------------------------------------------------------
+    // 3. EVENT LISTENER FORM LOGIN
+    // ---------------------------------------------------------
+    const formLogin = document.getElementById("formLogin");
     if (formLogin) {
+        // Auto-fill Remember Me
+        const savedUsername = localStorage.getItem(REMEMBER_KEY);
+        if (savedUsername) {
+            const userField = document.getElementById("usernameInput") || document.getElementById("nikInput");
+            if (userField) userField.value = savedUsername;
+            const rememberCheck = document.getElementById("rememberMe");
+            if (rememberCheck) rememberCheck.checked = true;
+        }
+
         formLogin.addEventListener("submit", async (e) => {
             e.preventDefault();
-            const username = document.getElementById("usernameInput")?.value.trim() || document.getElementById("nikInput")?.value.trim();
-            const password = document.getElementById("passwordInput").value;
-            await handleLogin(username, password);
+            const usernameField = document.getElementById("usernameInput") || document.getElementById("nikInput");
+            const username = usernameField.value.trim();
+            const password = passwordInput.value;
+            const isRemember = document.getElementById("rememberMe")?.checked || false;
+            
+            await handleLogin(username, password, isRemember);
         });
+    }
+
+    // ---------------------------------------------------------
+    // 4. EVENT LISTENER FORCE CHANGE PASSWORD (Perbaikan Bug 2)
+    // ---------------------------------------------------------
+    const btnSubmitChangePassword = document.getElementById("btnSubmitChangePassword");
+    if (btnSubmitChangePassword) {
+        btnSubmitChangePassword.addEventListener("click", handleForceChangePassword);
     }
 });
 
-function initLoginPageListeners() {
-  const formLogin = document.getElementById("formLogin");
-  const btnTogglePassword = document.getElementById("btnTogglePassword");
-  const passwordInput = document.getElementById("passwordInput");
-  const usernameInput = document.getElementById("usernameInput");
-  const rememberMeCheck = document.getElementById("rememberMeCheck");
-  
-  // Load Saved Username jika Remember Me aktif
-  const savedUsername = localStorage.getItem(REMEMBER_KEY);
-  if (savedUsername) {
-    usernameInput.value = savedUsername;
-    rememberMeCheck.checked = true;
-  }
-
-  // Toggle Password Visibility
-  if (btnTogglePassword && passwordInput) {
-    btnTogglePassword.addEventListener("click", () => {
-      const type = passwordInput.getAttribute("type") === "password" ? "text" : "password";
-      passwordInput.setAttribute("type", type);
-      btnTogglePassword.classList.toggle("fa-eye");
-      btnTogglePassword.classList.toggle("fa-eye-slash");
-    });
-  }
-
-  // Event Help Modal
-  const helpModal = document.getElementById("helpModal");
-  document.getElementById("btnOpenHelpModal")?.addEventListener("click", () => helpModal.classList.add("show"));
-  document.getElementById("btnCloseHelpModal")?.addEventListener("click", () => helpModal.classList.remove("show"));
-
-  // Event Submit Login Form
-  if (formLogin) {
-    formLogin.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const username = usernameInput.value.trim().toUpperCase();
-      const password = passwordInput.value;
-      const isRemember = rememberMeCheck.checked;
-
-      await handleLogin(username, password, isRemember);
-    });
-  }
-
-  // Event Submit Form Force Change Password
-  const formForceChange = document.getElementById("formForceChange");
-  if (formForceChange) {
-    formForceChange.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      await handleForceChangePassword();
-    });
-  }
-}
-
 // ===================================================
-// 3. FUNGSI EKSEKUSI LOGIN UTAMA
-// ===================================================
-// File: js/auth.js (Potongan Update Fungsi Eksekusi Login)
-
-async function handleLogin(username, password, isRemember) {
-  const alertContainer = document.getElementById("alertContainer");
-  const btnText = document.getElementById("btnText");
-  const btnSpinner = document.getElementById("btnSpinner");
-  const btnLogin = document.getElementById("btnLogin");
-
-  // Reset State UI
-  alertContainer.style.display = "none";
-  alertContainer.innerText = "";
-  btnText.innerText = "Memproses...";
-  btnSpinner.style.display = "inline-block";
-  btnLogin.disabled = true;
-
-  try {
-    const syntheticEmail = `${username.toLowerCase()}${SYNTHETIC_DOMAIN}`;
-
-    // 1. Authenticate ke Supabase Auth
-    const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
-      email: syntheticEmail,
-      password: password
-    });
-
-    if (authError) throw new Error("Username atau Password yang Anda masukkan salah!");
-
-    // 2. Query Data Profil (Hanya Role, Status, dan Pass Indicator)
-    const { data: userData, error: userError } = await supabaseClient
-      .from("users")
-      .select("id, username, role_id, is_active, must_change_password")
-      .ilike("username", username)
-      .maybeSingle();
-
-    if (userError || !userData) {
-      throw new Error("Akun pengguna tidak ditemukan di tabel sistem ERP!");
-    }
-
-    if (userData.is_active === false) {
-      throw new Error("Akun Anda telah dinonaktifkan! Hubungi Administrator.");
-    }
-
-    // 3. Query Data Personal Karyawan dari Schema HRD
-    const { data: empData } = await supabaseClient.schema("hrd")
-      .from("employees")
-      .select("id, nik_karyawan, nama, is_active, blacklist")
-      .ilike("nik_karyawan", username)
-      .maybeSingle();
-
-    if (empData) {
-      if (empData.is_active === false || empData.blacklist === true) {
-        throw new Error("Status Karyawan Non-Aktif / Ter-Blacklist! Akses ditolak.");
-      }
-    } else {
-      throw new Error("Data identitas karyawan tidak ditemukan di HRD!");
-    }
-
-    // 4. Query Departemen & Area Aktif dari employee_assignments
-    // Kita gunakan .or untuk mencocokkan id UUID atau NIK (karena relasi terkadang bervariasi)
-    const { data: assignData } = await supabaseClient.schema("hrd")
-      .from("employee_assignments")
-      .select("departemen_id, area_id")
-      .eq("is_active", true)
-      .or(`employee_id.eq.${empData.id},employee_id.eq.${empData.nik_karyawan}`)
-      .maybeSingle();
-
-    // 5. Cek Mekanisme Force Change Password
-    if (userData.must_change_password === true) {
-      document.getElementById("forceChangeModal").dataset.userId = userData.id;
-      document.getElementById("forceChangeModal").classList.add("show");
-      return; 
-    }
-
-    // 6. Simpan Session Login & Handle Remember Me
-    const userSession = {
-      userId: userData.id,
-      username: userData.username,
-      fullName: empData.nama || userData.username,
-      roleId: userData.role_id,
-      depId: assignData?.departemen_id || null, // Diambil dari Assignment Aktif
-      areaId: assignData?.area_id || null,      // Diambil dari Assignment Aktif
-      mustChangePassword: false,
-      loginTime: new Date().toISOString()
-    };
-
-    if (isRemember) {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(userSession));
-      localStorage.setItem(REMEMBER_KEY, username);
-    } else {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(userSession));
-      localStorage.removeItem(REMEMBER_KEY);
-    }
-
-    // Redirect ke Dashboard Utama (index.html)
-    window.location.href = "index.html";
-
-  } catch (err) {
-    alertContainer.innerText = err.message || "Terjadi kesalahan saat proses login.";
-    alertContainer.style.display = "block";
-  } finally {
-    btnText.innerText = "Masuk Ke Sistem";
-    btnSpinner.style.display = "none";
-    btnLogin.disabled = false;
-  }
-}
-
-// ===================================================
-// 4. PENANGANAN FORCE CHANGE PASSWORD
-// ===================================================
-async function handleForceChangePassword() {
-  const newPassword = document.getElementById("newPasswordInput").value;
-  const confirmPassword = document.getElementById("confirmPasswordInput").value;
-  const btnSaveText = document.getElementById("btnSaveText");
-  const btnSaveSpinner = document.getElementById("btnSaveSpinner");
-  const userId = document.getElementById("forceChangeModal").dataset.userId;
-
-  if (newPassword !== confirmPassword) {
-    alert("Konfirmasi password tidak cocok!");
-    return;
-  }
-
-  btnSaveText.innerText = "Menyimpan...";
-  btnSaveSpinner.style.display = "inline-block";
-
-  try {
-    // 1. Update Password di Supabase Auth Client
-    const { error: updateAuthErr } = await supabaseClient.auth.updateUser({
-      password: newPassword
-    });
-
-    if (updateAuthErr) throw updateAuthErr;
-
-    // 2. Update must_change_password = false di public.users
-    const { error: updateDbErr } = await supabaseClient
-      .from("users")
-      .update({ must_change_password: false })
-      .eq("id", userId);
-
-    if (updateDbErr) throw updateDbErr;
-
-    alert("✅ Password baru berhasil disimpan! Silakan login kembali.");
-    document.getElementById("forceChangeModal").classList.remove("show");
-    window.location.reload();
-
-  } catch (err) {
-    alert("Gagal memperbarui password: " + err.message);
-  } finally {
-    btnSaveText.innerText = "Simpan Password Baru";
-    btnSaveSpinner.style.display = "none";
-  }
-}
-
-// ===================================================
-// 5. PROTEKSI HALAMAN (AUTH GUARD) & LOGOUT
+// FUNGSI CHECK AUTH GUARD
 // ===================================================
 function checkAuthGuard() {
-  const sessionData = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
-  if (!sessionData) {
-    window.location.href = "login.html";
-  }
+    const activeSession = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
+    if (!activeSession) {
+        window.location.replace("login.html");
+    }
 }
 
-async function handleLogout() {
-  await supabaseClient.auth.signOut();
-  localStorage.removeItem(SESSION_KEY);
-  sessionStorage.removeItem(SESSION_KEY);
-  window.location.href = "login.html";
+// ===================================================
+// FUNGSI EKSEKUSI LOGIN UTAMA
+// ===================================================
+async function handleLogin(username, password, isRemember) {
+    const alertContainer = document.getElementById("alertContainer");
+    const btnText = document.getElementById("btnText");
+    const btnSpinner = document.getElementById("btnSpinner");
+    const btnLogin = document.getElementById("btnLogin");
+
+    if (alertContainer) {
+        alertContainer.style.display = "none";
+        alertContainer.innerText = "";
+    }
+    if (btnText) btnText.innerText = "Memproses...";
+    if (btnSpinner) btnSpinner.style.display = "inline-block";
+    if (btnLogin) btnLogin.disabled = true;
+
+    try {
+        const syntheticEmail = `${username.toLowerCase()}${SYNTHETIC_DOMAIN}`;
+
+        // 1. Authenticate ke Supabase Auth
+        const { data: authData, error: authError } = await window.supabaseClient.auth.signInWithPassword({
+            email: syntheticEmail,
+            password: password
+        });
+
+        if (authError) throw new Error("Username atau Password yang Anda masukkan salah!");
+
+        // 2. Query Data Profil (Hanya Role, Status, dan Pass Indicator)
+        const { data: userData, error: userError } = await window.supabaseClient
+            .from("users")
+            .select("id, username, role_id, is_active, must_change_password")
+            .ilike("username", username)
+            .maybeSingle();
+
+        if (userError || !userData) {
+            throw new Error("Akun pengguna tidak ditemukan di tabel sistem ERP!");
+        }
+
+        if (userData.is_active === false) {
+            throw new Error("Akun Anda telah dinonaktifkan! Hubungi Administrator.");
+        }
+
+        // 3. Query Data Personal Karyawan dari Schema HRD
+        const { data: empData } = await window.supabaseClient.schema("hrd")
+            .from("employees")
+            .select("id, nik_karyawan, nama, is_active, blacklist")
+            .ilike("nik_karyawan", username)
+            .maybeSingle();
+
+        if (empData) {
+            if (empData.is_active === false || empData.blacklist === true) {
+                throw new Error("Status Karyawan Non-Aktif / Ter-Blacklist! Akses ditolak.");
+            }
+        } else {
+            throw new Error("Data identitas karyawan tidak ditemukan di HRD!");
+        }
+
+        // 4. Query Departemen & Area Aktif dari employee_assignments
+        const { data: assignData } = await window.supabaseClient.schema("hrd")
+            .from("employee_assignments")
+            .select("departemen_id, area_id")
+            .eq("is_active", true)
+            .or(`employee_id.eq.${empData.id},employee_id.eq.${empData.nik_karyawan}`)
+            .maybeSingle();
+
+        // 5. Cek Mekanisme Force Change Password
+        if (userData.must_change_password === true) {
+            const forceChangeModal = document.getElementById("forceChangeModal");
+            if (forceChangeModal) {
+                forceChangeModal.dataset.userId = userData.id;
+                forceChangeModal.classList.add("show");
+                forceChangeModal.style.display = "block";
+            } else {
+                alert("Anda diwajibkan mengganti password, namun pop-up modal tidak ditemukan di HTML.");
+            }
+            return; // Hentikan eksekusi login, masuk ke mode ganti password
+        }
+
+        // 6. Simpan Session Login & Handle Remember Me
+        const userSession = {
+            userId: userData.id,
+            username: userData.username,
+            fullName: empData.nama || userData.username,
+            roleId: userData.role_id,
+            depId: assignData?.departemen_id || null, 
+            areaId: assignData?.area_id || null,      
+            mustChangePassword: false,
+            loginTime: new Date().toISOString()
+        };
+
+        if (isRemember) {
+            localStorage.setItem(SESSION_KEY, JSON.stringify(userSession));
+            localStorage.setItem(REMEMBER_KEY, username);
+        } else {
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify(userSession));
+            localStorage.removeItem(REMEMBER_KEY);
+        }
+
+        // Redirect ke Dashboard Utama
+        window.location.replace("index.html");
+
+    } catch (err) {
+        if (alertContainer) {
+            alertContainer.innerText = err.message || "Terjadi kesalahan saat proses login.";
+            alertContainer.style.display = "block";
+        } else {
+            alert(err.message);
+        }
+    } finally {
+        if (btnText) btnText.innerText = "Masuk Ke Sistem";
+        if (btnSpinner) btnSpinner.style.display = "none";
+        if (btnLogin) btnLogin.disabled = false;
+    }
+}
+
+// ===================================================
+// FUNGSI HANDLE FORCE CHANGE PASSWORD
+// ===================================================
+async function handleForceChangePassword(e) {
+    e.preventDefault();
+    
+    const newPassword = document.getElementById("newPasswordInput")?.value;
+    const confirmPassword = document.getElementById("confirmPasswordInput")?.value;
+    const userId = document.getElementById("forceChangeModal")?.dataset.userId;
+
+    if (!newPassword || newPassword.length < 6) {
+        alert("Password baru minimal 6 karakter!");
+        return;
+    }
+
+    if (confirmPassword && newPassword !== confirmPassword) {
+        alert("Konfirmasi password tidak cocok!");
+        return;
+    }
+
+    const btnText = document.getElementById("btnSubmitChangeText");
+    const btnSpinner = document.getElementById("btnSubmitChangeSpinner");
+    const btnSubmit = document.getElementById("btnSubmitChangePassword");
+
+    if(btnText) btnText.innerText = "Menyimpan...";
+    if(btnSpinner) btnSpinner.style.display = "inline-block";
+    if(btnSubmit) btnSubmit.disabled = true;
+
+    try {
+        // 1. Update Password di Sistem Auth Supabase
+        const { error: authError } = await window.supabaseClient.auth.updateUser({
+            password: newPassword
+        });
+
+        if (authError) throw new Error("Gagal menyimpan password di sistem Auth: " + authError.message);
+
+        // 2. Update status must_change_password di tabel public.users
+        const { error: dbError } = await window.supabaseClient
+            .from("users")
+            .update({ 
+                must_change_password: false,
+                updated_at: new Date().toISOString()
+            })
+            .eq("id", userId);
+
+        if (dbError) throw new Error("Gagal mengupdate status user di database: " + dbError.message);
+
+        alert("✅ Password berhasil diperbarui! Silakan klik OK, lalu login kembali dengan password baru Anda.");
+        
+        // Membersihkan sesi Auth sementara dari browser
+        await window.supabaseClient.auth.signOut();
+        
+        // Reload paksa halaman untuk mereset form login
+        window.location.reload();
+
+    } catch (err) {
+        alert(err.message);
+    } finally {
+        if(btnText) btnText.innerText = "Simpan Password Baru";
+        if(btnSpinner) btnSpinner.style.display = "none";
+        if(btnSubmit) btnSubmit.disabled = false;
+    }
 }

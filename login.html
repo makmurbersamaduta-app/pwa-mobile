@@ -224,7 +224,7 @@
             <div class="input-wrapper">
               <i class="fa-solid fa-lock input-icon"></i>
               <input type="password" id="passwordInput" class="form-input" placeholder="******" required>
-              <i class="fa-solid fa-eye toggle-password" id="btnTogglePassword" title="Lihat/Sembunyikan Password"></i>
+              <i class="fa-solid fa-eye toggle-password" id="togglePassword" title="Lihat/Sembunyikan Password"></i>
             </div>
           </div>
 
@@ -279,24 +279,35 @@
       <div class="modal-body">
         <p style="margin-bottom: 14px;">Password Anda telah direset oleh Admin. Silakan buat password baru sebelum melanjutkan ke sistem[cite: 2].</p>
         <form id="formForceChange">
-          <div class="form-group">
-            <label class="form-label" for="newPasswordInput">Password Baru</label>
-            <div class="input-wrapper">
-              <i class="fa-solid fa-lock input-icon"></i>
-              <input type="password" id="newPasswordInput" class="form-input" placeholder="Minimal 6 Karakter" required minlength="6">
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="confirmPasswordInput">Konfirmasi Password Baru</label>
-            <div class="input-wrapper">
-              <i class="fa-solid fa-shield-halved input-icon"></i>
-              <input type="password" id="confirmPasswordInput" class="form-input" placeholder="Ulangi Password Baru" required minlength="6">
-            </div>
-          </div>
-          <button type="submit" id="btnSaveNewPassword" class="btn-custom btn-success-custom">
-            <span id="btnSaveText">Simpan Password Baru</span>
-            <i id="btnSaveSpinner" class="fa-solid fa-spinner fa-spin" style="display: none;"></i>
-          </button>
+
+          <!-- Field 1: Password Baru -->
+<div class="form-group mb-3">
+  <label class="form-label" for="newPasswordInput">Password Baru</label>
+  <div class="input-group">
+    <span class="input-group-text"><i class="fa-solid fa-lock"></i></span>
+    <input type="password" id="newPasswordInput" class="form-control" placeholder="Minimal 6 Karakter" required minlength="6">
+    <span class="input-group-text" style="cursor: pointer;">
+      <i class="fa-solid fa-eye" id="toggleNewPassword"></i>
+    </span>
+  </div>
+</div>
+
+<!-- Field 2: Konfirmasi Password Baru -->
+<div class="form-group mb-3">
+  <label class="form-label" for="confirmPasswordInput">Konfirmasi Password Baru</label>
+  <div class="input-group">
+    <span class="input-group-text"><i class="fa-solid fa-shield-halved"></i></span>
+    <input type="password" id="confirmPasswordInput" class="form-control" placeholder="Ulangi Password Baru" required minlength="6">
+    <span class="input-group-text" style="cursor: pointer;">
+      <i class="fa-solid fa-eye" id="toggleConfirmPassword"></i>
+    </span>
+  </div>
+</div>
+
+          <button type="button" id="btnSubmitChangePassword" class="btn-custom btn-success-custom">
+  <span id="btnSubmitChangeText">Simpan Password Baru</span>
+  <i id="btnSubmitChangeSpinner" class="fa-solid fa-spinner fa-spin" style="display: none;"></i>
+</button>
         </form>
       </div>
     </div>
