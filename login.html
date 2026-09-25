@@ -313,18 +313,23 @@
     </div>
   </div>
 
-  <!-- Supabase JS CDN Client v2 -->
+<!-- Supabase JS CDN Client v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- WAJIB DITAMBAHKAN: File Inisialisasi Supabase Global -->
+  <script src="js/supabase.js"></script>
+
   <!-- Main Auth Script -->
   <script src="js/auth.js"></script>
+  
   <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then((reg) => console.log('[Service Worker] Terdaftar:', reg.scope))
-        .catch((err) => console.error('[Service Worker] Gagal:', err));
-    });
-  }
-</script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then((reg) => console.log('[Service Worker] Terdaftar:', reg.scope))
+          .catch((err) => console.error('[Service Worker] Gagal:', err));
+      });
+    }
+  </script>
 </body>
 </html>
