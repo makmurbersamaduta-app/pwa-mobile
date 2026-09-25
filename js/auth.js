@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const currentPath = window.location.pathname.toLowerCase();
     
     // Deteksi jika user berada di halaman root ("/") atau folder pwa-mobile tanpa file HTML
-    const isLoginPage = currentPath.endsWith("login.html") || currentPath.endsWith("/pwa-mobile/") || currentPath === "/";
+    const isLoginPage = currentPath.endsWith("login.html");
 
     if (!activeSession) {
         // Jika tidak ada sesi dan bukan di halaman login -> Tendang paksa ke login.html
