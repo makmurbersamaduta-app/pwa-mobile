@@ -2,7 +2,7 @@
 
 const SESSION_KEY = "pwa_mobile_session";
 const REMEMBER_KEY = "pwa_mobile_remember";
-const SYNTHETIC_DOMAIN = "@company.internal";
+const SYNTHETIC_DOMAIN = "@supabase.mail";
 
 document.addEventListener("DOMContentLoaded", () => {
     // ---------------------------------------------------------
