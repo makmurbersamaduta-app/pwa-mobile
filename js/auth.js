@@ -113,7 +113,63 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnCloseHelpModal && helpModal) {
         btnCloseHelpModal.addEventListener("click", () => helpModal.classList.remove("show"));
     }
+  // TAMBAHKAN di dalam DOMContentLoaded, dekat listener modal help yang sudah ada:
+    const btnCheckForgotStatus = document.getElementById("btnCheckForgotStatus");
+    if (btnCheckForgotStatus) {
+        btnCheckForgotStatus.addEventListener("click", handleCheckForgotStatus);
+    }  
 });
+
+async function handleCheckForgotStatus() {
+    const usernameInput = document.getElementById("forgotUsernameInput");
+    const username = usernameInput?.value.trim();
+    const btnText = document.getElementById("btnCheckForgotText");
+    const btnSpinner = document.getElementById("btnCheckForgotSpinner");
+    const btnCheck = document.getElementById("btnCheckForgotStatus");
+
+    if (!username) {
+        alert("Masukkan Username / NIK terlebih dahulu.");
+        return;
+    }
+
+    if (btnText) btnText.innerText = "Memeriksa...";
+    if (btnSpinner) btnSpinner.style.display = "inline-block";
+    if (btnCheck) btnCheck.disabled = true;
+
+    try {
+        const { data: userRow, error } = await window.supabaseClient
+            .from("users")
+            .select("id, must_change_password")
+            .ilike("username", username)
+            .maybeSingle();
+
+        if (error || !userRow) {
+            alert("Username / NIK tidak ditemukan.");
+            return;
+        }
+
+        if (userRow.must_change_password !== true) {
+            alert("Akun ini tidak dalam status wajib ganti password. Silakan hubungi Admin HRD untuk mengajukan reset.");
+            return;
+        }
+
+        const helpModal = document.getElementById("helpModal");
+        const forceChangeModal = document.getElementById("forceChangeModal");
+        if (helpModal) helpModal.classList.remove("show");
+        if (forceChangeModal) {
+            forceChangeModal.dataset.userId = userRow.id;
+            forceChangeModal.dataset.mode = "forgot";
+            forceChangeModal.classList.add("show");
+        }
+
+    } catch (err) {
+        alert("Terjadi kesalahan: " + err.message);
+    } finally {
+        if (btnText) btnText.innerText = "Cek Status Akun";
+        if (btnSpinner) btnSpinner.style.display = "none";
+        if (btnCheck) btnCheck.disabled = false;
+    }
+}
 
 // ===================================================
 // FUNGSI CHECK AUTH GUARD
@@ -184,8 +240,29 @@ async function handleLogin(username, password, isRemember) {
             .from("employee_assignments")
             .select("departemen_id, area_id")
             .eq("is_active", true)
-            .or(`employee_id.eq.${empData.id},employee_id.eq.${empData.nik_karyawan}`)
+            .eq("employee_id", empData.id)
             .maybeSingle();
+
+        let areaName = null;
+        let departmentName = null;
+
+        if (assignData?.area_id) {
+            const { data: areaData } = await window.supabaseClient
+                .from("areas")
+                .select("area_name")
+                .eq("id", assignData.area_id)
+                .maybeSingle();
+            areaName = areaData?.area_name || null;
+        }
+
+        if (assignData?.departemen_id) {
+            const { data: deptData } = await window.supabaseClient
+                .from("departments")
+                .select("department_name")
+                .eq("id", assignData.departemen_id)
+                .maybeSingle();
+            departmentName = deptData?.department_name || null;
+        }
 
         if (userData.must_change_password === true) {
             const forceChangeModal = document.getElementById("forceChangeModal");
@@ -205,7 +282,9 @@ async function handleLogin(username, password, isRemember) {
             fullName: empData.nama || userData.username,
             roleId: userData.role_id,
             depId: assignData?.departemen_id || null, 
-            areaId: assignData?.area_id || null,      
+            areaId: assignData?.area_id || null,
+            entitas: areaName,          // <-- BARU: nama area, dipakai di header dashboard index.html
+            departemen: departmentName, // <-- BARU: nama departemen, disimpan untuk kebutuhan lain
             mustChangePassword: false,
             loginTime: new Date().toISOString()
         };
@@ -242,7 +321,9 @@ async function handleForceChangePassword(e) {
     
     const newPassword = document.getElementById("newPasswordInput")?.value;
     const confirmPassword = document.getElementById("confirmPasswordInput")?.value;
-    const userId = document.getElementById("forceChangeModal")?.dataset.userId;
+    const forceChangeModal = document.getElementById("forceChangeModal");
+    const userId = forceChangeModal?.dataset.userId;
+    const mode = forceChangeModal?.dataset.mode;
 
     if (!newPassword || newPassword.length < 6) {
         alert("Password baru minimal 6 karakter!");
@@ -263,6 +344,28 @@ async function handleForceChangePassword(e) {
     if(btnSubmit) btnSubmit.disabled = true;
 
     try {
+        if (mode === "forgot") {
+            // Alur Lupa Password: TIDAK ada Auth session, wajib lewat Edge Function service_role
+            const { data, error } = await window.supabaseClient.functions.invoke("sync-auth", {
+                body: {
+                    action: "self_reset_password",
+                    user_id: Number(userId),
+                    new_password: newPassword
+                }
+            });
+
+            if (error || !data?.success) {
+                throw new Error(data?.message || error?.message || "Gagal memperbarui password.");
+            }
+
+            alert("✅ Password berhasil diperbarui! Silakan login dengan password baru Anda.");
+            forceChangeModal.classList.remove("show");
+            delete forceChangeModal.dataset.mode;
+            window.location.reload();
+            return;
+        }
+
+        // Alur lama: dipicu saat login, sudah ada Auth session aktif
         const { error: authError } = await window.supabaseClient.auth.updateUser({
             password: newPassword
         });

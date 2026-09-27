@@ -123,6 +123,35 @@
       color: var(--text-muted);
     }
 
+/* Suggestion Box (dropdown auto-suggest kode artikel) */
+.suggestion-box {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  margin-top: 4px;
+}
+.suggestion-item {
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--dark-color);
+}
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+.suggestion-item:hover {
+  background-color: var(--bg-light);
+}
+
     /* Modal Layout Overrides */
     .modal-overlay {
       position: fixed;
@@ -140,6 +169,32 @@
       opacity: 1;
       visibility: visible;
     }
+    /* Modal variant: top-aligned (untuk modalIn & modalSearch) */
+.modal-overlay.modal-top {
+  align-items: flex-start;
+}
+.modal-overlay.modal-top .modal-sheet {
+  border-radius: 16px;
+  margin-top: 20px;
+  animation: fadeInTop 0.2s ease-out;
+}
+@keyframes fadeInTop {
+  from { opacity: 0; transform: translateY(-16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Modal variant: center-aligned (untuk modalOut) */
+.modal-overlay.modal-center {
+  align-items: center;
+}
+.modal-overlay.modal-center .modal-sheet {
+  border-radius: 16px;
+  animation: fadeInCenter 0.2s ease-out;
+}
+@keyframes fadeInCenter {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
     .modal-sheet {
       background: #ffffff;
       width: 100%;
@@ -219,7 +274,7 @@
   <!-- =================================================== -->
   <!-- MODAL 1: PROSES BARANG IN                           -->
   <!-- =================================================== -->
-  <div class="modal-overlay" id="modalIn">
+  <div class="modal-overlay modal-top" id="modalIn">
     <div class="modal-sheet">
       <!-- Live Sticky Warning Banner -->
       <div id="stickyWarningBanner" class="sticky-warning-banner" style="display: none;">
@@ -297,7 +352,7 @@
   <!-- =================================================== -->
   <!-- MODAL 2: CAMERA SCANNER & FORM OUT                  -->
   <!-- =================================================== -->
-  <div class="modal-overlay" id="modalOut">
+  <div class="modal-overlay modal-center" id="modalOut">
     <div class="modal-sheet">
       <!-- FIX 2: Perbaikan CSS Style space-between -->
       <div class="modal-header" style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 14px;">
@@ -358,7 +413,7 @@
   <!-- =================================================== -->
   <!-- MODAL 3: CEK / CARI BARANG (SEARCH RESULTS)         -->
   <!-- =================================================== -->
-  <div class="modal-overlay" id="modalSearch">
+  <div class="modal-overlay modal-top" id="modalSearch">
     <div class="modal-sheet">
       <!-- FIX 2: Perbaikan CSS Style space-between -->
       <div class="modal-header" style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 14px;">
@@ -398,10 +453,11 @@
   
   <!-- 1. Konfigurasi Client Supabase -->
   <script src="../js/supabase.js"></script>
+
+  <!-- 2. Auth Guard & Session Checking -->
+  <script src="../js/auth.js"></script>
   
-  <!-- 2. Main Module Logic -->
+  <!-- 3. Main Module Logic -->
   <script src="../js/wrapping.js"></script>
-</body>
-</html>
 </body>
 </html>

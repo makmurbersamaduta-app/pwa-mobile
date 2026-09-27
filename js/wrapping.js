@@ -1,245 +1,262 @@
 // File: js/wrapping.js
+// Modul Sisa Wrapping - Barang IN, Barang OUT (scan QR), Cari/Cek Stok
 
 const STORAGE_BUCKET = "wrapping-photos";
-const SESSION_KEY = "pwa_mobile_session";
 
-let html5QrCodeScanner = null;
-let currentActiveUser = null;
+let currentActiveUser = null;      // data user aktif dari sesi (bukan dummy)
+let selectedArtikelData = null;    // data artikel terpilih dari auto-suggest saat Barang IN
+let html5QrCodeInstance = null;    // instance scanner, dipakai untuk start/stop
 
 document.addEventListener("DOMContentLoaded", () => {
-  const sessionRaw = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
-  if (sessionRaw) {
-    currentActiveUser = JSON.parse(sessionRaw);
-  } else {
-    currentActiveUser = { fullName: "Petugas Operator", username: "DMB11001" };
+  // ============================================================
+  // 1. AUTH GUARD LAPIS KEDUA
+  // auth.js sudah menjalankan guard global-nya sendiri lebih dulu.
+  // Blok ini pengaman tambahan khusus modul ini: pastikan
+  // currentActiveUser TERISI VALID sebelum form apapun bisa dipakai.
+  // Tidak ada fallback dummy sama sekali -- kalau sesi kosong,
+  // langsung tendang ke login, titik.
+  // ============================================================
+  const sessionDataRaw = localStorage.getItem("pwa_mobile_session") || sessionStorage.getItem("pwa_mobile_session");
+  if (!sessionDataRaw) {
+    window.location.replace("../login.html");
+    return;
   }
-  initModuleEventListeners();
-});
+  currentActiveUser = JSON.parse(sessionDataRaw);
 
-function formatTanggalIndo(dateObj) {
-  const d = dateObj ? new Date(dateObj) : new Date();
-  const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = months[d.getMonth()];
-  const year = d.getFullYear();
-  return `${day} ${month} ${year}`;
-}
+  // Isi field readonly Petugas & Tanggal begitu sesi valid didapat
+  const inPetugas = document.getElementById("inPetugas");
+  if (inPetugas) inPetugas.value = currentActiveUser.fullName || currentActiveUser.username;
 
-function initModuleEventListeners() {
-  document.getElementById("btnOpenModalIn")?.addEventListener("click", openModalIn);
-  document.getElementById("btnOpenScannerOut")?.addEventListener("click", openScannerOut);
+  const inTanggalMasuk = document.getElementById("inTanggalMasuk");
+  if (inTanggalMasuk) inTanggalMasuk.value = new Date().toLocaleDateString("id-ID");
+
+  // ============================================================
+  // 2. TOMBOL BUKA MODAL
+  // ============================================================
+  document.getElementById("btnOpenModalIn")?.addEventListener("click", () => openModal("modalIn"));
   document.getElementById("btnOpenModalSearch")?.addEventListener("click", () => openModal("modalSearch"));
+  document.getElementById("btnOpenScannerOut")?.addEventListener("click", openModalOut);
 
-  // Event Auto-Suggest
-  document.getElementById("inKodeArtikel")?.addEventListener("input", (e) => {
-    handleAutoSuggest(e.target.value, "suggestionBox", "in");
-  });
-  document.getElementById("searchKeyword")?.addEventListener("input", (e) => {
-    handleAutoSuggest(e.target.value, "searchSuggestionBox", "search");
-  });
+  // ============================================================
+  // 3. AUTO-SUGGEST KODE ARTIKEL (Form Barang IN)
+  // ============================================================
+  const inKodeArtikel = document.getElementById("inKodeArtikel");
+  if (inKodeArtikel) {
+    inKodeArtikel.addEventListener("input", debounce(handleArtikelSuggest, 350));
+  }
 
-  // Event Auto-Separator Ribuan Qty
-  document.getElementById("inQty")?.addEventListener("input", (e) => {
-    let value = e.target.value.replace(/[^0-9]/g, ""); 
-    if (value) {
-      e.target.value = parseInt(value, 10).toLocaleString("id-ID");
-    } else {
-      e.target.value = "";
-    }
-  });
-
-  // Peringatan Pertama: Saat user menutup keyboard / pindah dari kolom Qty
-  document.getElementById("inQty")?.addEventListener("blur", (e) => {
-    // Timeout kecil mencegah bentrok jika user langsung klik tombol Submit
-    setTimeout(() => { validatePcsPalletWarning(false); }, 150);
-  });
-
+  // ============================================================
+  // 4. SUBMIT FORM BARANG IN & FORM KONFIRMASI BARANG OUT
+  // ============================================================
   document.getElementById("formBarangIn")?.addEventListener("submit", handleSubmitBarangIn);
   document.getElementById("formConfirmOut")?.addEventListener("submit", handleSubmitBarangOut);
-  document.getElementById("btnExecuteSearch")?.addEventListener("click", handleSearchExecute);
-}
 
-function openModal(modalId) { document.getElementById(modalId)?.classList.add("show"); }
-function closeModal(modalId) { document.getElementById(modalId)?.classList.remove("show"); }
-
-// Fungsi Logika Validasi Pcs/Pallet
-function validatePcsPalletWarning(isSubmitContext) {
-  const rawQty = document.getElementById("inQty")?.value.replace(/\./g, "");
-  if (!rawQty) return true; 
-
-  const qtyValue = parseInt(rawQty, 10);
-  const pcsPalletRaw = document.getElementById("inKodeArtikel")?.dataset.pcsPallet;
-
-  if (!pcsPalletRaw || pcsPalletRaw === "null" || pcsPalletRaw === "undefined" || pcsPalletRaw === "") {
-    const msg = "Artikel ini tidak memiliki Qty Pcs/Pallet pada database, pastikan Qty barang yg anda masukkan dibawah 50%";
-    if (isSubmitContext) {
-      return confirm(msg + "\n\nApakah Anda yakin ingin tetap melanjutkan submit?");
-    } else {
-      alert(msg);
-      return true; // Tetap izinkan lanjut jika dari event blur
-    }
-  } else {
-    const pcsPallet = parseFloat(pcsPalletRaw);
-    
-    // PERBAIKAN: 50% dari pcs/pallet sama dengan dikali 0.5 (dibagi 2)
-    const threshold = pcsPallet * 0.5; 
-    
-    if (qtyValue < threshold) {
-      const msg = "Barang dibawah stock minimum penyimpanan!!";
-      if (isSubmitContext) {
-        return confirm(msg + "\n\nApakah Anda yakin ingin tetap melanjutkan submit?");
-      } else {
-        alert(msg);
-        return true; 
-      }
-    }
+  // ============================================================
+  // 5. SEARCH / CEK STOK
+  // ============================================================
+  document.getElementById("btnExecuteSearch")?.addEventListener("click", handleExecuteSearch);
+  const searchKeyword = document.getElementById("searchKeyword");
+  if (searchKeyword) {
+    searchKeyword.addEventListener("input", debounce(handleSearchSuggest, 350));
   }
-  return true;
+});
+
+// ===================================================
+// UTILITAS: DEBOUNCE
+// Menunda eksekusi fungsi sampai user berhenti mengetik selama
+// `delay` ms -- supaya tidak query ke database di setiap ketukan huruf.
+// ===================================================
+function debounce(fn, delay) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
 }
 
-async function handleAutoSuggest(keyword, boxId, mode) {
-  const suggestionBox = document.getElementById(boxId);
-  keyword = keyword.trim().toUpperCase();
+// ===================================================
+// UTILITAS: BUKA / TUTUP MODAL (dipanggil juga langsung dari HTML onclick)
+// ===================================================
+function openModal(modalId) {
+  document.getElementById(modalId)?.classList.add("show");
+}
+function closeModal(modalId) {
+  document.getElementById(modalId)?.classList.remove("show");
+}
 
-  if (keyword.length < 2) {
+// ===================================================
+// 2. AUTO-SUGGEST KODE ARTIKEL
+// Query ke stg_public.artikel, tampilkan daftar di #suggestionBox
+// ===================================================
+async function handleArtikelSuggest() {
+  const keyword = document.getElementById("inKodeArtikel").value.trim();
+  const suggestionBox = document.getElementById("suggestionBox");
+
+  if (!keyword) {
     suggestionBox.style.display = "none";
+    suggestionBox.innerHTML = "";
     return;
   }
 
-  try {
-    // Menambahkan field pcs_pallet ke dalam tarikan query
-    const { data: artikelList, error } = await window.supabaseClient
-      .schema("stg_public")
-      .from("artikel")
-      .select("kode_artikel, nama_barang, customer, pcs_pallet")
-      .ilike("kode_artikel", `%${keyword}%`)
-      .limit(6);
-
-    if (error) throw error;
-
-    if (artikelList && artikelList.length > 0) {
-      let html = "";
-      artikelList.forEach(item => {
-        html += `
-          <div class="suggestion-item" onclick="selectArtikel('${item.kode_artikel}', '${item.nama_barang}', '${item.customer || '-'}', '${item.pcs_pallet || ''}', '${boxId}', '${mode}')">
-            <strong>[${item.kode_artikel}]</strong>, ${item.nama_barang}
-          </div>
-        `;
-      });
-      suggestionBox.innerHTML = html;
-      suggestionBox.style.display = "block";
-    } else {
-      suggestionBox.style.display = "none";
-    }
-  } catch (err) {
-    console.error("Error auto-suggest:", err);
-  }
-}
-
-function selectArtikel(kode, nama, customer, pcsPallet, boxId, mode) {
-  document.getElementById(boxId).style.display = "none";
-  if (mode === "in") {
-    const inputKode = document.getElementById("inKodeArtikel");
-    inputKode.value = kode;
-    
-    // Simpan pcs_pallet ke dataset secara tersembunyi
-    inputKode.dataset.pcsPallet = pcsPallet;
-
-    document.getElementById("inNamaBarang").value = nama;
-    document.getElementById("inCustomer").value = customer;
-    checkDuplicateStock(kode);
-  } else if (mode === "search") {
-    document.getElementById("searchKeyword").value = kode;
-  }
-}
-
-function openModalIn() {
-  const form = document.getElementById("formBarangIn");
-  form.reset();
-  document.getElementById("inTanggalMasuk").value = formatTanggalIndo();
-  document.getElementById("inPetugas").value = currentActiveUser.fullName || currentActiveUser.username;
-  document.getElementById("stickyWarningBanner").style.display = "none";
-  document.getElementById("suggestionBox").style.display = "none";
-  document.getElementById("inKodeArtikel").dataset.pcsPallet = ""; // Reset dataset
-  openModal("modalIn");
-}
-
-async function checkDuplicateStock(kodeArtikel) {
-  const banner = document.getElementById("stickyWarningBanner");
-  const bannerText = document.getElementById("lblWarningText");
-
-  const { count, error } = await window.supabaseClient
+  const { data, error } = await window.supabaseClient
     .schema("stg_public")
-    .from("sisa_wrapping")
-    .select("id", { count: "exact", head: true })
-    .eq("kode_artikel", kodeArtikel)
-    .eq("is_active", true);
+    .from("artikel")
+    .select("kode_artikel, nama_barang, customer")
+    .ilike("kode_artikel", `%${keyword}%`)
+    .limit(8);
 
-  if (!error && count > 0) {
-    bannerText.innerText = `⚠️ PERINGATAN: Kode artikel ini masih memiliki ${count} barang berstatus AKTIF di gudang!`;
-    banner.style.display = "flex";
-    banner.dataset.hasDuplicate = "true";
-  } else {
-    banner.style.display = "none";
-    banner.dataset.hasDuplicate = "false";
+  if (error || !data || data.length === 0) {
+    suggestionBox.style.display = "none";
+    suggestionBox.innerHTML = "";
+    return;
   }
-}
 
-function compressImage(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 800;
-        let scaleSize = 1;
-        if (img.width > MAX_WIDTH) scaleSize = MAX_WIDTH / img.width;
-        canvas.width = img.width * scaleSize;
-        canvas.height = img.height * scaleSize;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.65);
-      };
-    };
-    reader.onerror = (err) => reject(err);
+  suggestionBox.innerHTML = data.map(item => `
+    <div class="suggestion-item" data-kode="${item.kode_artikel}" data-nama="${item.nama_barang || ''}" data-customer="${item.customer || ''}">
+      <strong>${item.kode_artikel}</strong> - ${item.nama_barang || '(tanpa nama)'}
+    </div>
+  `).join("");
+  suggestionBox.style.display = "block";
+
+  // Klik salah satu saran -> isi form otomatis
+  suggestionBox.querySelectorAll(".suggestion-item").forEach(el => {
+    el.addEventListener("click", () => selectArtikel(el.dataset));
   });
 }
 
+async function selectArtikel(dataset) {
+  document.getElementById("inKodeArtikel").value = dataset.kode;
+  document.getElementById("inNamaBarang").value = dataset.nama;
+  document.getElementById("inCustomer").value = dataset.customer;
+  document.getElementById("suggestionBox").style.display = "none";
+  selectedArtikelData = dataset;
+
+  // Cek duplikasi aktif -> tampilkan sticky warning banner kalau ada
+  await checkDuplicateAndWarnBanner(dataset.kode);
+}
+
+// ===================================================
+// C.4: CEK DUPLIKASI (PERINGATAN, BUKAN HARD BLOCK)
+// ===================================================
+async function checkDuplicateAndWarnBanner(kodeArtikel) {
+  const { data } = await window.supabaseClient
+    .schema("stg_public")
+    .from("sisa_wrapping")
+    .select("id")
+    .eq("kode_artikel", kodeArtikel)
+    .eq("is_active", true);
+
+  const banner = document.getElementById("stickyWarningBanner");
+  if (data && data.length > 0) {
+    banner.style.display = "flex";
+  } else {
+    banner.style.display = "none";
+  }
+  return data ? data.length : 0;
+}
+
+// ===================================================
+// C.3: GENERATE ID HEX 12 KARAKTER + INSERT DENGAN RETRY
+// ===================================================
+function generateShortId(length = 12) {
+  const bytes = new Uint8Array(Math.ceil(length / 2));
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('').slice(0, length);
+}
+
+async function insertBarangInWithRetry(basePayload, maxRetry = 3) {
+  for (let attempt = 0; attempt < maxRetry; attempt++) {
+    const payload = { ...basePayload, id: generateShortId(12) };
+    const { error } = await window.supabaseClient
+      .schema("stg_public")
+      .from("sisa_wrapping")
+      .insert([payload]);
+
+    if (!error) return { success: true, id: payload.id };
+    if (error.code !== '23505') throw error; // bukan tabrakan ID -> lempar ke pemanggil
+  }
+  throw new Error("Gagal membuat ID unik setelah beberapa percobaan, coba submit ulang.");
+}
+
+// ===================================================
+// UTILITAS: KOMPRESI FOTO SEBELUM UPLOAD
+// Resize ke maksimal 1024px di sisi terpanjang, kualitas JPEG 70%
+// -- supaya ukuran file kecil, hemat kuota data & Storage.
+// ===================================================
+function compressImage(fileInput) {
+  return new Promise((resolve, reject) => {
+    const file = fileInput.files[0];
+    if (!file) return reject(new Error("Tidak ada foto dipilih."));
+
+    const img = new Image();
+    const reader = new FileReader();
+
+    reader.onload = (e) => { img.src = e.target.result; };
+    reader.onerror = () => reject(new Error("Gagal membaca file foto."));
+
+    img.onload = () => {
+      const maxSize = 1024;
+      let { width, height } = img;
+      if (width > height && width > maxSize) {
+        height *= maxSize / width;
+        width = maxSize;
+      } else if (height > maxSize) {
+        width *= maxSize / height;
+        height = maxSize;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error("Gagal kompresi foto.")),
+        "image/jpeg",
+        0.7
+      );
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+// ===================================================
+// 3. SUBMIT FORM BARANG IN
+// ===================================================
 async function handleSubmitBarangIn(e) {
   e.preventDefault();
 
-  // Validasi 1: Duplikasi Stock Aktif
-  const hasDuplicate = document.getElementById("stickyWarningBanner").dataset.hasDuplicate === "true";
-  if (hasDuplicate) {
-    const isConfirm = confirm("Kode artikel ini masih memiliki stok aktif di gudang. Yakin tetap menambah data baru?");
-    if (!isConfirm) return;
+  const btnSubmitIn = document.getElementById("btnSubmitIn");
+  const btnSubmitInText = document.getElementById("btnSubmitInText");
+  const btnSubmitInSpinner = document.getElementById("btnSubmitInSpinner");
+
+  const kodeArtikel = document.getElementById("inKodeArtikel").value.trim().toUpperCase();
+  const batchNumber = document.getElementById("inBatchNumber").value.trim().toUpperCase();
+  const qty = Number(document.getElementById("inQty").value);
+  const shift = document.getElementById("inShift").value;
+  const fotoInput = document.getElementById("inFotoInput");
+
+  if (!kodeArtikel || !batchNumber || !qty || !shift || !fotoInput.files[0]) {
+    alert("Semua field wajib diisi, termasuk foto barang.");
+    return;
   }
 
-  // Validasi 2: Pcs / Pallet Minimum Warning (Peringatan Kedua / Final Confirmation)
-  const isPcsPalletConfirmed = validatePcsPalletWarning(true);
-  if (!isPcsPalletConfirmed) return;
+  // C.4: Peringatan duplikasi -- confirm(), bukan hard block
+  const duplicateCount = await checkDuplicateAndWarnBanner(kodeArtikel);
+  if (duplicateCount > 0) {
+    const lanjut = confirm(`PERINGATAN: Kode artikel "${kodeArtikel}" masih memiliki ${duplicateCount} barang berstatus AKTIF di gudang. Tetap lanjutkan input?`);
+    if (!lanjut) return;
+  }
 
-  const btnText = document.getElementById("btnSubmitInText");
-  const btnSpinner = document.getElementById("btnSubmitInSpinner");
-  const btnSubmit = document.getElementById("btnSubmitIn");
-
-  btnText.innerText = "Mengkompresi & Upload...";
-  btnSpinner.style.display = "inline-block";
-  btnSubmit.disabled = true;
+  btnSubmitInText.innerText = "Menyimpan...";
+  btnSubmitInSpinner.style.display = "inline-block";
+  btnSubmitIn.disabled = true;
 
   try {
-    const fileInput = document.getElementById("inFotoInput").files[0];
-    if (!fileInput) throw new Error("Foto barang wajib diambil via kamera!");
-
-    const rawQty = document.getElementById("inQty").value.replace(/\./g, "");
-    const qtyValue = parseInt(rawQty, 10);
-
-    const compressedBlob = await compressImage(fileInput);
+    const compressedBlob = await compressImage(fotoInput);
     const fileName = `Foto_Barang/IN_${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
-    
+
     const { error: uploadErr } = await window.supabaseClient.storage
       .from(STORAGE_BUCKET)
       .upload(fileName, compressedBlob, { contentType: "image/jpeg" });
@@ -249,106 +266,125 @@ async function handleSubmitBarangIn(e) {
     const { data: publicUrlData } = window.supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
     const fotoPublicUrl = publicUrlData.publicUrl;
 
-    const payload = {
-      kode_artikel: document.getElementById("inKodeArtikel").value.trim().toUpperCase(),
-      batch_number: document.getElementById("inBatchNumber").value.trim().toUpperCase(),
+    const basePayload = {
+      kode_artikel: kodeArtikel,
+      batch_number: batchNumber,
       tanggal_masuk: new Date().toISOString().split("T")[0],
-      qty: qtyValue,
-      shift_in: document.getElementById("inShift").value,
+      qty: qty,
+      shift_in: shift,
       petugas_in: currentActiveUser.fullName || currentActiveUser.username,
       foto_path: fotoPublicUrl,
       is_active: true
     };
 
-    const { error: insertErr } = await window.supabaseClient.schema("stg_public").from("sisa_wrapping").insert([payload]);
-    if (insertErr) throw insertErr;
+    await insertBarangInWithRetry(basePayload);
 
-    alert("✅ Data Barang IN berhasil disimpan!");
+    alert("✅ Barang IN berhasil disimpan.");
+    document.getElementById("formBarangIn").reset();
+    document.getElementById("inNamaBarang").value = "";
+    document.getElementById("inCustomer").value = "";
+    document.getElementById("inPetugas").value = currentActiveUser.fullName || currentActiveUser.username;
+    document.getElementById("inTanggalMasuk").value = new Date().toLocaleDateString("id-ID");
+    document.getElementById("stickyWarningBanner").style.display = "none";
+    selectedArtikelData = null;
     closeModal("modalIn");
+
   } catch (err) {
-    alert("Terjadi kesalahan: " + (err.message || err));
+    alert("Gagal menyimpan Barang IN: " + err.message);
   } finally {
-    btnText.innerText = "Simpan Barang IN";
-    btnSpinner.style.display = "none";
-    btnSubmit.disabled = false;
+    btnSubmitInText.innerText = "Simpan Barang IN";
+    btnSubmitInSpinner.style.display = "none";
+    btnSubmitIn.disabled = false;
   }
 }
 
-// ---------------- Scanner & OUT ---------------- //
-function openScannerOut() {
+// ===================================================
+// BARANG OUT: SCANNER QR
+// ===================================================
+function openModalOut() {
+  openModal("modalOut");
   document.getElementById("scannerSection").style.display = "block";
   document.getElementById("formConfirmOut").style.display = "none";
-  openModal("modalOut");
 
-  html5QrCodeScanner = new Html5Qrcode("qr-reader");
-  const config = { fps: 10, qrbox: { width: 220, height: 220 } };
-
-  html5QrCodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
-    .catch(err => {
-      console.error("Gagal membuka kamera:", err);
-      alert("Tidak dapat mengakses kamera ponsel.");
-    });
+  html5QrCodeInstance = new Html5Qrcode("qr-reader");
+  html5QrCodeInstance.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 250 },
+    onScanSuccess,
+    () => { /* error per-frame diabaikan, normal saat kamera belum fokus */ }
+  ).catch(err => {
+    alert("Gagal membuka kamera: " + err);
+    closeModalOut();
+  });
 }
 
 function closeModalOut() {
-  if (html5QrCodeScanner && html5QrCodeScanner.isScanning) {
-    html5QrCodeScanner.stop().then(() => closeModal("modalOut"));
-  } else {
-    closeModal("modalOut");
+  if (html5QrCodeInstance) {
+    html5QrCodeInstance.stop().then(() => html5QrCodeInstance.clear()).catch(() => {});
+    html5QrCodeInstance = null;
   }
+  closeModal("modalOut");
+  document.getElementById("formConfirmOut").reset();
+  document.getElementById("formConfirmOut").style.display = "none";
+  document.getElementById("scannerSection").style.display = "block";
 }
 
 async function onScanSuccess(decodedText) {
-  if (html5QrCodeScanner) await html5QrCodeScanner.stop();
-  document.getElementById("scannerSection").style.display = "none";
-
-  try {
-    const { data: itemData, error } = await window.supabaseClient
-      .schema("stg_public")
-      .from("sisa_wrapping")
-      .select("*")
-      .eq("id", decodedText)
-      .maybeSingle();
-
-    if (error || !itemData) {
-      alert("⚠️ Data barang tidak ditemukan atau QR Code tidak valid!");
-      closeModal("modalOut");
-      return;
-    }
-
-    if (itemData.is_active === false) {
-      alert("⚠️ Barang ini sudah berstatus OUT sebelumnya!");
-      closeModal("modalOut");
-      return;
-    }
-
-    const formatQty = itemData.qty.toLocaleString("id-ID");
-
-    document.getElementById("outRowId").value = itemData.id;
-    document.getElementById("outKodeArtikel").value = itemData.kode_artikel;
-    document.getElementById("outNamaCustomer").value = `Batch: ${itemData.batch_number}`;
-    document.getElementById("outBatchQty").value = `Qty: ${formatQty}`;
-    document.getElementById("outPetugas").value = currentActiveUser.fullName || currentActiveUser.username;
-    document.getElementById("outPreviewImg").src = itemData.foto_path || "https://via.placeholder.com/150";
-
-    document.getElementById("formConfirmOut").style.display = "block";
-  } catch (err) {
-    alert("Gagal memuat data scan: " + err.message);
-    closeModal("modalOut");
+  // Hentikan kamera segera setelah dapat hasil, supaya tidak scan berkali-kali
+  if (html5QrCodeInstance) {
+    await html5QrCodeInstance.stop().catch(() => {});
   }
+
+  const { data: rowData, error } = await window.supabaseClient
+    .schema("stg_public")
+    .from("sisa_wrapping")
+    .select("id, kode_artikel, batch_number, qty, foto_path")
+    .eq("id", decodedText)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error || !rowData) {
+    alert("QR tidak dikenali atau barang sudah tidak aktif (mungkin sudah di-OUT sebelumnya).");
+    closeModalOut();
+    return;
+  }
+
+  const { data: artikelData } = await window.supabaseClient
+    .schema("stg_public")
+    .from("artikel")
+    .select("nama_barang, customer")
+    .eq("kode_artikel", rowData.kode_artikel)
+    .maybeSingle();
+
+  document.getElementById("outRowId").value = rowData.id;
+  document.getElementById("outKodeArtikel").value = rowData.kode_artikel;
+  document.getElementById("outNamaCustomer").value = `${artikelData?.nama_barang || '-'} / ${artikelData?.customer || '-'}`;
+  document.getElementById("outBatchQty").value = `${rowData.batch_number} / ${rowData.qty} pcs`;
+  document.getElementById("outPetugas").value = currentActiveUser.fullName || currentActiveUser.username;
+  document.getElementById("outPreviewImg").src = rowData.foto_path || "";
+
+  document.getElementById("scannerSection").style.display = "none";
+  document.getElementById("formConfirmOut").style.display = "block";
 }
 
 async function handleSubmitBarangOut(e) {
   e.preventDefault();
+
+  const btnSubmitOut = document.getElementById("btnSubmitOut");
+  const btnSubmitOutText = document.getElementById("btnSubmitOutText");
+  const btnSubmitOutSpinner = document.getElementById("btnSubmitOutSpinner");
+
   const rowId = document.getElementById("outRowId").value;
   const shiftOut = document.getElementById("outShift").value;
-  const btnText = document.getElementById("btnSubmitOutText");
-  const btnSpinner = document.getElementById("btnSubmitOutSpinner");
-  const btnSubmit = document.getElementById("btnSubmitOut");
 
-  btnText.innerText = "Memproses...";
-  btnSpinner.style.display = "inline-block";
-  btnSubmit.disabled = true;
+  if (!shiftOut) {
+    alert("Pilih Shift Keluar terlebih dahulu.");
+    return;
+  }
+
+  btnSubmitOutText.innerText = "Memproses...";
+  btnSubmitOutSpinner.style.display = "inline-block";
+  btnSubmitOut.disabled = true;
 
   try {
     const { error } = await window.supabaseClient
@@ -361,76 +397,95 @@ async function handleSubmitBarangOut(e) {
         shift_out: shiftOut,
         update_at: new Date().toISOString()
       })
-      .eq("id", rowId);
+      .eq("id", rowId)
+      .eq("is_active", true); // jaga-jaga: tidak proses ulang barang yang sudah OUT duluan
 
-    if (error) throw error;
-    alert("✅ Barang berhasil diproses OUT!");
-    closeModal("modalOut");
+    if (error) throw new Error(error.message);
+
+    alert("✅ Barang OUT berhasil diproses.");
+    closeModalOut();
+
   } catch (err) {
     alert("Gagal memproses Barang OUT: " + err.message);
   } finally {
-    btnText.innerText = "Proses Barang OUT";
-    btnSpinner.style.display = "none";
-    btnSubmit.disabled = false;
+    btnSubmitOutText.innerText = "Proses Barang OUT";
+    btnSubmitOutSpinner.style.display = "none";
+    btnSubmitOut.disabled = false;
   }
 }
 
-// ---------------- Search ---------------- //
-async function handleSearchExecute() {
-  const keyword = document.getElementById("searchKeyword").value.trim().toUpperCase();
-  const container = document.getElementById("searchResultsContainer");
+// ===================================================
+// CARI / CEK STOK
+// ===================================================
+async function handleSearchSuggest() {
+  const keyword = document.getElementById("searchKeyword").value.trim();
+  const box = document.getElementById("searchSuggestionBox");
 
   if (!keyword) {
-    alert("Masukkan kode artikel terlebih dahulu!");
+    box.style.display = "none";
+    box.innerHTML = "";
     return;
   }
 
-  container.innerHTML = `<p style="text-align:center;"><i class="fa-solid fa-spinner fa-spin me-2"></i>Mencari data...</p>`;
-  document.getElementById("searchSuggestionBox").style.display = "none";
+  const { data } = await window.supabaseClient
+    .schema("stg_public")
+    .from("artikel")
+    .select("kode_artikel, nama_barang")
+    .ilike("kode_artikel", `%${keyword}%`)
+    .limit(8);
 
-  try {
-    const { data: results, error } = await window.supabaseClient
-      .schema("stg_public")
-      .from("sisa_wrapping")
-      .select("*")
-      .ilike("kode_artikel", `%${keyword}%`)
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
-    if (!results || results.length === 0) {
-      container.innerHTML = `<p style="text-align: center; color: var(--danger-color); font-size: 0.82rem;">Tidak ada stok aktif ditemukan untuk kode artikel "${keyword}".</p>`;
-      return;
-    }
-
-    let html = `<div style="font-size:0.85rem; font-weight:700; margin-bottom:10px; color:var(--dark-color);">Ditemukan ${results.length} Stok Aktif:</div>`;
-
-    results.forEach((item, index) => {
-      const tanggalFormat = formatTanggalIndo(item.tanggal_masuk);
-      const formatQty = item.qty.toLocaleString("id-ID");
-      
-      html += `
-        <div class="result-item-card">
-          <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-            <span style="font-weight:700; color:var(--primary-color);">Stok #${index + 1} - ${item.kode_artikel}</span>
-            <span style="font-size:0.75rem; color:var(--text-muted);">${tanggalFormat}</span>
-          </div>
-          <div style="display:flex; gap:12px; align-items:center;">
-            <img src="${item.foto_path || 'https://via.placeholder.com/60'}" class="item-thumbnail" onclick="previewImage('${item.foto_path}')">
-            <div style="font-size:0.78rem; line-height:1.4;">
-              <div><strong>Batch:</strong> ${item.batch_number}</div>
-              <div><strong>Qty:</strong> ${formatQty} | <strong>Shift:</strong> ${item.shift_in}</div>
-              <div><strong>Petugas IN:</strong> ${item.petugas_in}</div>
-            </div>
-          </div>
-        </div>
-      `;
-    });
-    container.innerHTML = html;
-  } catch (err) {
-    container.innerHTML = `<p style="text-align:center; color:var(--danger-color);">Gagal mencari data: ${err.message}</p>`;
+  if (!data || data.length === 0) {
+    box.style.display = "none";
+    return;
   }
+
+  box.innerHTML = data.map(item => `
+    <div class="suggestion-item" data-kode="${item.kode_artikel}">
+      <strong>${item.kode_artikel}</strong> - ${item.nama_barang || ''}
+    </div>
+  `).join("");
+  box.style.display = "block";
+
+  box.querySelectorAll(".suggestion-item").forEach(el => {
+    el.addEventListener("click", () => {
+      document.getElementById("searchKeyword").value = el.dataset.kode;
+      box.style.display = "none";
+      handleExecuteSearch();
+    });
+  });
+}
+
+async function handleExecuteSearch() {
+  const keyword = document.getElementById("searchKeyword").value.trim();
+  const container = document.getElementById("searchResultsContainer");
+
+  if (!keyword) {
+    container.innerHTML = `<p style="text-align:center;color:var(--text-muted);font-size:0.8rem;">Masukkan kode artikel untuk mencari.</p>`;
+    return;
+  }
+
+  const { data, error } = await window.supabaseClient
+    .schema("stg_public")
+    .from("sisa_wrapping")
+    .select("id, kode_artikel, batch_number, qty, tanggal_masuk, foto_path")
+    .ilike("kode_artikel", `%${keyword}%`)
+    .eq("is_active", true)
+    .order("tanggal_masuk", { ascending: false });
+
+  if (error || !data || data.length === 0) {
+    container.innerHTML = `<p style="text-align:center;color:var(--text-muted);font-size:0.8rem;">Tidak ada stok aktif ditemukan.</p>`;
+    return;
+  }
+
+  container.innerHTML = data.map(row => `
+    <div class="result-item-card" style="display:flex; gap:10px; align-items:center;">
+      <img src="${row.foto_path || ''}" class="item-thumbnail" onclick="previewImage('${row.foto_path}')">
+      <div>
+        <strong>${row.kode_artikel}</strong> - Batch ${row.batch_number}<br>
+        <span style="font-size:0.75rem;color:var(--text-muted);">Qty: ${row.qty} | Masuk: ${row.tanggal_masuk}</span>
+      </div>
+    </div>
+  `).join("");
 }
 
 function previewImage(url) {

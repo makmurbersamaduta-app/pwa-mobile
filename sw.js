@@ -1,5 +1,5 @@
 // File: sw.js
-const CACHE_NAME = 'pwa-mobile-v3';
+const CACHE_NAME = 'pwa-mobile-v4';
 
 // [GUNAKAN RELATIVE PATH AGAR COMPATIBLE DENGAN GITHUB PAGES]
 const ASSETS_TO_CACHE = [
@@ -9,6 +9,8 @@ const ASSETS_TO_CACHE = [
   'pages/wrapping.html',
   'css/style.css',
   'js/auth.js',
+  'js/supabase.js',
+  'js/menu-restrictions.js',
   'js/wrapping.js'
 ];
 
@@ -51,7 +53,7 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request)
       .then((response) => {
         // Simpan salinan respon terbaru ke cache jika sukses
-        if (response && response.status === 200 && response.type === 'basic') {
+        if (response && (response.type === 'basic' || response.type === 'opaque')) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);

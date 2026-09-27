@@ -253,18 +253,28 @@
   </div>
 
   <!-- Modal Popup 1: Request Reset Password / Help -->
+<!-- GANTI seluruh isi modal-body di dalam #helpModal (yang lama, isi statis hotline saja): -->
+
+  <!-- MENJADI: -->
   <div class="modal-overlay" id="helpModal">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 class="modal-title"><i class="fa-solid fa-headset text-primary me-2"></i>Bantuan Reset Password</h3>
+        <h3 class="modal-title"><i class="fa-solid fa-key text-primary me-2"></i>Lupa Password</h3>
         <button class="modal-close" id="btnCloseHelpModal">&times;</button>
       </div>
       <div class="modal-body">
-        <p style="margin-bottom: 12px;">Untuk meminta reset password akun Anda, silakan hubungi Supervisor Area atau Admin HRD terdekat untuk diteruskan ke Web ERP Admin.</p>
-        <div style="background: var(--bg-light); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-          <strong>Pusat Bantuan ERP:</strong><br>
-          <i class="fa-solid fa-phone-volume me-1 text-muted"></i> Hotline HRD: 0812-xxxx-xxxx<br>
-          <i class="fa-solid fa-building me-1 text-muted"></i> Ruangan Admin Operational Central
+        <p style="margin-bottom: 12px;">Masukkan Username / NIK Anda untuk memeriksa status akun.</p>
+        <div class="form-group">
+          <input type="text" id="forgotUsernameInput" class="form-input input-uppercase" placeholder="Contoh: DMB11001" style="padding-left:12px;">
+        </div>
+        <button type="button" id="btnCheckForgotStatus" class="btn-custom btn-dark-custom" style="margin-top: 10px;">
+          <span id="btnCheckForgotText">Cek Status Akun</span>
+          <i id="btnCheckForgotSpinner" class="fa-solid fa-spinner fa-spin" style="display: none;"></i>
+        </button>
+        <div style="background: var(--bg-light); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-top: 16px;">
+          <strong>Belum direset Admin?</strong><br>
+          Hubungi Supervisor Area atau Admin HRD untuk mengajukan reset password.<br>
+          <i class="fa-solid fa-phone-volume me-1 text-muted"></i> Hotline : 0851-0703-1888
         </div>
       </div>
     </div>

@@ -110,15 +110,17 @@
       transform: scale(0.95);
     }
     .grid-icon-wrapper {
-      width: 42px;
-      height: 42px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.15rem;
-      margin-bottom: 8px;
-    }
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  margin-bottom: 8px;
+  background-color: #f1f5f9;
+  color: #334155;
+}
     .grid-label {
       font-size: 0.68rem;
       font-weight: 600;
@@ -253,6 +255,8 @@
 
   <!-- Supabase JS CDN Client v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/menu-restrictions.js"></script>
   <!-- Skrip Auth Guard & Session Checking -->
   <script src="js/auth.js"></script>
 
@@ -266,103 +270,97 @@
     // Skenario B: { entitas: 'PT. Sentralindo Teguh Gemilang', departemen: 'LABOUR SUPPLY' } -> 5 Ikon Menu (Home, OMS, Sisa Wrapping, Company Report, Akun)
     // Skenario C: { entitas: 'PT. Sentralindo Teguh Gemilang', departemen: 'LABOUR SUPPLY & SECURITY' } -> 6 Ikon Menu (Home, Patroli, OMS, Sisa Wrapping, Company Report, Akun)
 
-    document.addEventListener("DOMContentLoaded", () => {
-      // Load Data Sesi yang Tersimpan (Atau gunakan Dummy jika belum login)
-      const sessionDataRaw = localStorage.getItem("pwa_mobile_session") || sessionStorage.getItem("pwa_mobile_session");
-      
-      let currentUser = null;
-      if (sessionDataRaw) {
-        currentUser = JSON.parse(sessionDataRaw);
-      } else {
-        // Fallback Simulasi Data Skenario C (Lengkap) jika dijalankan tanpa login
-        currentUser = {
-          fullName: "Budi Santoso",
-          username: "DMB11001",
-          entitas: "PT. Sentralindo Teguh Gemilang",
-          departemen: "LABOUR SUPPLY & SECURITY",
-          shiftName: "SHREGULAR - 08:00 s/d 16:00"
-        };
-      }
+document.addEventListener("DOMContentLoaded", async () => {
+  const sessionDataRaw = localStorage.getItem("pwa_mobile_session") || sessionStorage.getItem("pwa_mobile_session");
 
-      // 2. Render Profile Header
-      document.getElementById("lblUserName").innerText = currentUser.fullName || currentUser.username;
-      document.getElementById("lblUserRole").innerText = `Area: ${currentUser.entitas || 'PT. DMB'}`;
+  let currentUser = null;
+  if (sessionDataRaw) {
+    currentUser = JSON.parse(sessionDataRaw);
+  } else {
+    // Fallback dummy untuk testing tanpa login
+    currentUser = {
+      roleId: 5,
+      depId: 5,
+      areaId: 3,
+      fullName: "Budi Santoso",
+      username: "DMB11001",
+      entitas: "PT. Sentralindo Teguh Gemilang"
+    };
+  }
 
-      // 3. Render Bottom Navigation Bar & Quick Access Grid Secara Dinamis
-      renderDynamicNavigation(currentUser);
-    });
+  document.getElementById("lblUserName").innerText = currentUser.fullName || currentUser.username;
+  document.getElementById("lblUserRole").innerText = `Area: ${currentUser.entitas || 'PT. DMB'}`;
 
-    // ===================================================
-    // 2. LOGIKA RENDER DYNAMIC NAVIGATION & QUICK ACCESS
-    // ===================================================
-    // File: index.html (Potongan Logika Render Navigasi)
+  await renderDynamicNavigation(currentUser);
+});
 
-function renderDynamicNavigation(user) {
+// ===================================================
+// RENDER MENU DATA-DRIVEN DARI app_menus + role_permissions
+// ===================================================
+async function renderDynamicNavigation(user) {
   const bottomNav = document.getElementById("bottomNav");
   const quickAccessGrid = document.getElementById("quickAccessGrid");
 
-  // Daftar Master Menu PWA
-  const allMenus = {
-    home: { id: 'home', label: 'Home', icon: 'fa-house', link: 'index.html', bgIcon: '#e0f2fe', colorIcon: '#0284c7' },
-    patroli: { id: 'patroli', label: 'Patroli', icon: 'fa-shield-halved', link: '#', bgIcon: '#fef3c7', colorIcon: '#d97706' },
-    oms: { id: 'oms', label: 'OMS', icon: 'fa-cubes', link: '#', bgIcon: '#f3e8ff', colorIcon: '#9333ea' },
-    wrapping: { id: 'wrapping', label: 'Sisa Wrapping', icon: 'fa-box-archive', link: 'pages/wrapping.html', bgIcon: '#dcfce7', colorIcon: '#16a34a' },
-    report: { id: 'report', label: 'Report', icon: 'fa-chart-pie', link: '#', bgIcon: '#ffe4e6', colorIcon: '#e11d48' },
-    account: { id: 'account', label: 'Akun', icon: 'fa-user', link: '#', bgIcon: '#f1f5f9', colorIcon: '#475569' }
-  };
+  let menuRows = [];
 
-  let activeNavKeys = [];
-
-  // ========================================================
-  // RULE 1: BYPASS AKSES MAINTENANCE / SUPERADMIN (Role ID 1)
-  // ========================================================
   if (user.roleId === 1) {
-    // Munculkan SELURUH Ikon Menu
-    activeNavKeys = ['home', 'patroli', 'oms', 'wrapping', 'report', 'account'];
-  } 
-  // ========================================================
-  // RULE 2: FILTER DEPARTEMEN NORMAL (Simulasi dummy)
-  // ========================================================
-  else {
-    activeNavKeys = ['home', 'report', 'account']; // Default General
+    // Maintenance: ambil SEMUA menu PWA, tidak dicek role_permissions
+    const { data, error } = await window.supabaseClient
+      .from("app_menus")
+      .select("id, menu_code, menu_name, icon_class, path_url, sort_order")
+      .eq("platform", "pwa")
+      .eq("is_active", true)
+      .order("sort_order");
 
-    // Karena depId kini berupa ID Integer, validasi menggunakan angka ID Departemen 
-    // (Misal: 5 = Labour Supply, 6 = Labour Supply & Security)
-    const isSTG = user.areaId === 2; // Contoh: ID 2 adalah Area STG
-    const isLabourSupply = user.depId === 5; 
-    const isSecurity = user.depId === 6; 
-
-    if (isSTG && isSecurity) {
-      activeNavKeys = ['home', 'patroli', 'oms', 'wrapping', 'report', 'account'];
-    } else if (isSTG && isLabourSupply) {
-      activeNavKeys = ['home', 'oms', 'wrapping', 'report', 'account'];
+    if (error) {
+      console.error("[Menu] Gagal load app_menus:", error);
+      return;
     }
+    menuRows = data;
+  } else {
+    // Role selain Maintenance: join ke role_permissions, filter can_view = true
+    const { data, error } = await window.supabaseClient
+      .from("role_permissions")
+      .select("can_view, app_menus!inner(id, menu_code, menu_name, icon_class, path_url, sort_order, platform, is_active)")
+      .eq("role_id", user.roleId)
+      .eq("can_view", true)
+      .eq("app_menus.platform", "pwa")
+      .eq("app_menus.is_active", true);
+
+    if (error) {
+      console.error("[Menu] Gagal load role_permissions:", error);
+      return;
+    }
+    menuRows = data
+      .map(row => row.app_menus)
+      .sort((a, b) => a.sort_order - b.sort_order);
   }
 
-  // Render HTML Dynamic Bottom Navigation Bar
+  // Saring lagi berdasarkan rule departemen/area (js/menu-restrictions.js)
+  const activeMenus = menuRows.filter(menu => isMenuAllowedByRestriction(menu.menu_code, user));
+
+  // Render Bottom Navigation Bar
   let navHtml = "";
-  activeNavKeys.forEach(key => {
-    const item = allMenus[key];
-    const isActive = key === 'home' ? 'active' : '';
+  activeMenus.forEach(menu => {
+    const isActive = menu.menu_code === "PWA-HOME-01" ? "active" : "";
     navHtml += `
-      <a href="${item.link}" class="nav-item ${isActive}">
-        <i class="fa-solid ${item.icon}"></i>
-        <span>${item.label}</span>
+      <a href="${menu.path_url}" class="nav-item ${isActive}">
+        <i class="fa-solid ${menu.icon_class}"></i>
+        <span>${menu.menu_name}</span>
       </a>
     `;
   });
   bottomNav.innerHTML = navHtml;
 
-  // Render HTML Dynamic Quick Access Grid
+  // Render Quick Access Grid (warna ikon seragam, diatur lewat CSS .grid-icon-wrapper)
   let gridHtml = "";
-  activeNavKeys.forEach(key => {
-    const item = allMenus[key];
+  activeMenus.forEach(menu => {
     gridHtml += `
-      <a href="${item.link}" class="grid-item">
-        <div class="grid-icon-wrapper" style="background-color: ${item.bgIcon}; color: ${item.colorIcon};">
-          <i class="fa-solid ${item.icon}"></i>
+      <a href="${menu.path_url}" class="grid-item">
+        <div class="grid-icon-wrapper">
+          <i class="fa-solid ${menu.icon_class}"></i>
         </div>
-        <span class="grid-label">${item.label}</span>
+        <span class="grid-label">${menu.menu_name}</span>
       </a>
     `;
   });
