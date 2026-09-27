@@ -116,11 +116,26 @@ document.addEventListener("DOMContentLoaded", () => {
   // TAMBAHKAN di dalam DOMContentLoaded, dekat listener modal help yang sudah ada:
     const btnCheckForgotStatus = document.getElementById("btnCheckForgotStatus");
     if (btnCheckForgotStatus) {
-        btnCheckForgotStatus.addEventListener("click", handleCheckForgotStatus);
+        btnCheckForgotStatus.addEventListener("click", handleRequestReset);
     }  
 });
 
-async function handleCheckForgotStatus() {
+// ===================================================
+// FUNGSI AJUKAN RESET PASSWORD (form "Lupa Password")
+// Menggantikan handleCheckForgotStatus lama yang HANYA membaca
+// must_change_password langsung dari tabel (celah: anon bisa baca
+// kolom status akun orang lain). Sekarang SEMUA baca+tulis status
+// lewat Edge Function sync-auth (action "request_reset"), yang
+// jalan pakai service_role di server, bukan client anon key.
+//
+// 3 kemungkinan balasan server (field "status"):
+//   'close' TIDAK PERNAH dikembalikan di sini -- kalau masih close,
+//           server sudah mengubahnya jadi 'open' di baris yg sama
+//   'open'     -> baru diajukan ATAU sudah pernah diajukan sebelumnya,
+//                 keduanya sama-sama tampilkan alert utk hubungi admin
+//   'progress' -> admin sudah approve -> langsung buka modal ganti password
+// ===================================================
+async function handleRequestReset() {
     const usernameInput = document.getElementById("forgotUsernameInput");
     const username = usernameInput?.value.trim();
     const btnText = document.getElementById("btnCheckForgotText");
@@ -132,40 +147,41 @@ async function handleCheckForgotStatus() {
         return;
     }
 
-    if (btnText) btnText.innerText = "Memeriksa...";
+    if (btnText) btnText.innerText = "Memproses...";
     if (btnSpinner) btnSpinner.style.display = "inline-block";
     if (btnCheck) btnCheck.disabled = true;
 
     try {
-        const { data: userRow, error } = await window.supabaseClient
-            .from("users")
-            .select("id, must_change_password")
-            .ilike("username", username)
-            .maybeSingle();
+        const { data, error } = await window.supabaseClient.functions.invoke("sync-auth", {
+            body: { action: "request_reset", username: username }
+        });
 
-        if (error || !userRow) {
-            alert("Username / NIK tidak ditemukan.");
+        if (error || !data?.success) {
+            alert(data?.message || error?.message || "Username / NIK tidak ditemukan.");
             return;
         }
 
-        if (userRow.must_change_password !== true) {
-            alert("Akun ini tidak dalam status wajib ganti password. Silakan hubungi Admin HRD untuk mengajukan reset.");
+        // Admin sudah approve (status 'progress') -- langsung ke modal
+        // ganti password, tidak perlu ajukan ulang.
+        if (data.status === "progress") {
+            const helpModal = document.getElementById("helpModal");
+            const forceChangeModal = document.getElementById("forceChangeModal");
+            if (helpModal) helpModal.classList.remove("show");
+            if (forceChangeModal) {
+                forceChangeModal.dataset.userId = data.user_id;
+                forceChangeModal.dataset.mode = "forgot";
+                forceChangeModal.classList.add("show");
+            }
             return;
         }
 
-        const helpModal = document.getElementById("helpModal");
-        const forceChangeModal = document.getElementById("forceChangeModal");
-        if (helpModal) helpModal.classList.remove("show");
-        if (forceChangeModal) {
-            forceChangeModal.dataset.userId = userRow.id;
-            forceChangeModal.dataset.mode = "forgot";
-            forceChangeModal.classList.add("show");
-        }
+        // status 'open' -- baru diajukan atau memang masih menunggu admin
+        alert(data.message);
 
     } catch (err) {
         alert("Terjadi kesalahan: " + err.message);
     } finally {
-        if (btnText) btnText.innerText = "Cek Status Akun";
+        if (btnText) btnText.innerText = "Ajukan Reset Password";
         if (btnSpinner) btnSpinner.style.display = "none";
         if (btnCheck) btnCheck.disabled = false;
     }
@@ -264,7 +280,7 @@ async function handleLogin(username, password, isRemember) {
             departmentName = deptData?.department_name || null;
         }
 
-        if (userData.must_change_password === true) {
+        if (userData.must_change_password === "progress") {
             const forceChangeModal = document.getElementById("forceChangeModal");
             if (forceChangeModal) {
                 forceChangeModal.dataset.userId = userData.id;
@@ -375,7 +391,7 @@ async function handleForceChangePassword(e) {
         const { error: dbError } = await window.supabaseClient
             .from("users")
             .update({ 
-                must_change_password: false,
+                must_change_password: "close",
                 updated_at: new Date().toISOString()
             })
             .eq("id", userId);
