@@ -59,7 +59,34 @@ document.addEventListener("DOMContentLoaded", () => {
   if (searchKeyword) {
     searchKeyword.addEventListener("input", debounce(handleSearchSuggest, 350));
   }
+
+  // TAMBAHKAN di dalam DOMContentLoaded:
+  const inQty = document.getElementById("inQty");
+  if (inQty) {
+    inQty.addEventListener("input", handleQtyAutoSeparator);
+  }
 });
+
+// ===================================================
+// AUTO SEPARATOR RIBUAN UNTUK INPUT QTY (Barang IN)
+// Tampilan: "12.000" -- Nilai asli yang dikirim ke DB tetap angka murni
+// ===================================================
+function handleQtyAutoSeparator(e) {
+  const input = e.target;
+  const rawDigitsOnly = input.value.replace(/\D/g, ""); // buang semua kecuali angka
+
+  if (!rawDigitsOnly) {
+    input.value = "";
+    return;
+  }
+
+  input.value = Number(rawDigitsOnly).toLocaleString("id-ID");
+}
+
+// Helper: ambil angka murni dari input yang sudah berformat "12.000"
+function parseQtyValue(formattedValue) {
+  return Number(formattedValue.replace(/\D/g, ""));
+}
 
 // ===================================================
 // UTILITAS: DEBOUNCE
@@ -233,7 +260,7 @@ async function handleSubmitBarangIn(e) {
 
   const kodeArtikel = document.getElementById("inKodeArtikel").value.trim().toUpperCase();
   const batchNumber = document.getElementById("inBatchNumber").value.trim().toUpperCase();
-  const qty = Number(document.getElementById("inQty").value);
+  const qty = parseQtyValue(document.getElementById("inQty").value);
   const shift = document.getElementById("inShift").value;
   const fotoInput = document.getElementById("inFotoInput");
 
@@ -320,8 +347,10 @@ function openModalOut() {
 
 function closeModalOut() {
   if (html5QrCodeInstance) {
-    html5QrCodeInstance.stop().then(() => html5QrCodeInstance.clear()).catch(() => {});
-    html5QrCodeInstance = null;
+    html5QrCodeInstance.stop()
+      .then(() => html5QrCodeInstance?.clear())
+      .catch(() => {}) // scanner mungkin sudah berhenti duluan -- aman diabaikan
+      .finally(() => { html5QrCodeInstance = null; });
   }
   closeModal("modalOut");
   document.getElementById("formConfirmOut").reset();
@@ -333,6 +362,7 @@ async function onScanSuccess(decodedText) {
   // Hentikan kamera segera setelah dapat hasil, supaya tidak scan berkali-kali
   if (html5QrCodeInstance) {
     await html5QrCodeInstance.stop().catch(() => {});
+    html5QrCodeInstance = null; // tandai sudah berhenti, supaya closeModalOut() tidak stop() lagi
   }
 
   const { data: rowData, error } = await window.supabaseClient
@@ -406,8 +436,7 @@ async function handleSubmitBarangOut(e) {
     closeModalOut();
 
   } catch (err) {
-    console.error("DEBUG Barang OUT error:", err);
-    alert("Gagal memproses Barang OUT: " + JSON.stringify(err));
+    alert("Gagal memproses Barang OUT: " + err.message);
   } finally {
     btnSubmitOutText.innerText = "Proses Barang OUT";
     btnSubmitOutSpinner.style.display = "none";
