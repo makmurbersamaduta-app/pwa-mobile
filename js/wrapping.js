@@ -406,7 +406,8 @@ async function handleSubmitBarangOut(e) {
     closeModalOut();
 
   } catch (err) {
-    alert("Gagal memproses Barang OUT: " + err.message);
+    console.error("DEBUG Barang OUT error:", err);
+    alert("Gagal memproses Barang OUT: " + JSON.stringify(err));
   } finally {
     btnSubmitOutText.innerText = "Proses Barang OUT";
     btnSubmitOutSpinner.style.display = "none";
