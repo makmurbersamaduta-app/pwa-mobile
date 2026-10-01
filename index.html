@@ -179,7 +179,7 @@
       </div>
       <div class="header-action" id="btnInbox" title="Buka Inbox">
         <i class="fa-solid fa-bell notification-bell"></i>
-        <span class="badge-count" id="lblNotificationCount">3</span>
+        <span class="badge-count" id="lblNotificationCount" style="display:none;">0</span>
       </div>
     </header>
 
@@ -256,9 +256,9 @@
   <!-- Supabase JS CDN Client v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase.js"></script>
-  <script src="js/menu-restrictions.js"></script>
   <!-- Skrip Auth Guard & Session Checking -->
   <script src="js/auth.js"></script>
+  <script src="js/menu-engine.js"></script>
 
   <!-- Skrip Logika Dinamis Dashboard Home -->
   <script>
@@ -301,47 +301,47 @@ async function renderDynamicNavigation(user) {
   const bottomNav = document.getElementById("bottomNav");
   const quickAccessGrid = document.getElementById("quickAccessGrid");
 
-  let menuRows = [];
+  const activeMenus = await fetchAllowedMenus(user);
 
-  if (user.roleId === 1) {
-    // Maintenance: ambil SEMUA menu PWA, tidak dicek role_permissions
-    const { data, error } = await window.supabaseClient
-      .from("app_menus")
-      .select("id, menu_code, menu_name, icon_class, path_url, sort_order")
-      .eq("platform", "pwa")
-      .eq("is_active", true)
-      .order("sort_order");
+// ===================================================
+// MODAL "LAINNYA" -- menampilkan menu ke-5 dst yang tidak muat di bottom nav
+// ===================================================
+function renderMoreMenuModal(menus) {
+  let existingModal = document.getElementById("moreMenuModal");
+  if (existingModal) existingModal.remove();
 
-    if (error) {
-      console.error("[Menu] Gagal load app_menus:", error);
-      return;
-    }
-    menuRows = data;
-  } else {
-    // Role selain Maintenance: join ke role_permissions, filter can_view = true
-    const { data, error } = await window.supabaseClient
-      .from("role_permissions")
-      .select("can_view, app_menus!inner(id, menu_code, menu_name, icon_class, path_url, sort_order, platform, is_active)")
-      .eq("role_id", user.roleId)
-      .eq("can_view", true)
-      .eq("app_menus.platform", "pwa")
-      .eq("app_menus.is_active", true);
+  const itemsHtml = menus.map(menu => `
+    <a href="${menu.path_url}" style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border-color); color:var(--dark-color); text-decoration:none;">
+      <i class="fa-solid ${menu.icon_class}" style="width:20px; color:#0d6efd;"></i>
+      <span style="font-size:0.85rem; font-weight:600;">${menu.menu_name}</span>
+    </a>
+  `).join("");
 
-    if (error) {
-      console.error("[Menu] Gagal load role_permissions:", error);
-      return;
-    }
-    menuRows = data
-      .map(row => row.app_menus)
-      .sort((a, b) => a.sort_order - b.sort_order);
+  const modalHtml = `
+    <div class="modal-overlay show" id="moreMenuModal" style="align-items:flex-end;">
+      <div style="background:#fff; width:100%; max-width:480px; border-radius:16px 16px 0 0; max-height:70vh; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-color);">
+          <strong style="font-size:0.95rem;">Menu Lainnya</strong>
+          <button onclick="document.getElementById('moreMenuModal').remove()" style="background:none; border:none; font-size:1.2rem; color:var(--text-muted);">&times;</button>
+        </div>
+        ${itemsHtml}
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+}
+
+  // Render Bottom Navigation Bar -- maksimal 4 tab + "Lainnya" kalau hasil filter >5
+  let navMenus = activeMenus;
+  let overflowMenus = [];
+
+  if (activeMenus.length > 5) {
+    navMenus = activeMenus.slice(0, 4);
+    overflowMenus = activeMenus.slice(4);
   }
 
-  // Saring lagi berdasarkan rule departemen/area (js/menu-restrictions.js)
-  const activeMenus = menuRows.filter(menu => isMenuAllowedByRestriction(menu.menu_code, user));
-
-  // Render Bottom Navigation Bar
   let navHtml = "";
-  activeMenus.forEach(menu => {
+  navMenus.forEach(menu => {
     const isActive = menu.menu_code === "PWA-HOME-01" ? "active" : "";
     navHtml += `
       <a href="${menu.path_url}" class="nav-item ${isActive}">
@@ -350,7 +350,27 @@ async function renderDynamicNavigation(user) {
       </a>
     `;
   });
+
+  if (overflowMenus.length > 0) {
+    navHtml += `
+      <a href="#" class="nav-item" id="btnOpenMoreMenu">
+        <i class="fa-solid fa-ellipsis"></i>
+        <span>Lainnya</span>
+      </a>
+    `;
+  }
   bottomNav.innerHTML = navHtml;
+
+  // Simpan sisa menu overflow untuk dipakai modal "Lainnya"
+  window._overflowMenus = overflowMenus;
+
+  const btnOpenMoreMenu = document.getElementById("btnOpenMoreMenu");
+  if (btnOpenMoreMenu) {
+    btnOpenMoreMenu.addEventListener("click", (e) => {
+      e.preventDefault();
+      renderMoreMenuModal(overflowMenus);
+    });
+  }
 
   // Render Quick Access Grid (warna ikon seragam, diatur lewat CSS .grid-icon-wrapper)
   let gridHtml = "";
@@ -367,6 +387,66 @@ async function renderDynamicNavigation(user) {
   quickAccessGrid.innerHTML = gridHtml;
 }
 
+// ===================================================
+// RESOLUSI AKSES BERDASARKAN menu_access_rules
+// Aturan: lolos role_permissions (sudah difilter sebelumnya) DAN
+// lolos ketiga dimensi (departemen/area/jabatan) -- dimensi tanpa
+// rule dianggap tidak dibatasi. Role 1 (Maintenance) bypass total,
+// tidak dicek ke tabel ini sama sekali.
+// ===================================================
+async function filterMenusByAccessRules(menuRows, user) {
+  if (user.roleId === 1) return menuRows; // Maintenance bypass total
+
+  if (menuRows.length === 0) return [];
+
+  const menuCodes = menuRows.map(m => m.menu_code);
+
+  const { data: rules, error } = await window.supabaseClient
+    .from("menu_access_rules")
+    .select("menu_code, dimension, mode, value_id, rule_group")
+    .in("menu_code", menuCodes);
+
+  if (error) {
+    console.error("[Menu Access] Gagal load menu_access_rules:", error);
+    return menuRows; // fail-open: kalau query rule gagal, jangan sampai semua menu hilang
+  }
+
+  return menuRows.filter(menu => isAllowedByRules(menu.menu_code, rules, user));
+}
+
+function isAllowedByRules(menuCode, rules, user) {
+  const menuRules = rules.filter(r => r.menu_code === menuCode);
+  if (menuRules.length === 0) return true;
+
+  const groupIds = [...new Set(menuRules.map(r => r.rule_group))];
+
+  return groupIds.some(groupId => {
+    const groupRules = menuRules.filter(r => r.rule_group === groupId);
+
+    // Gabungkan value_id per dimension+mode dalam grup ini jadi satu set
+    const dimensionSets = {};
+    groupRules.forEach(r => {
+      const key = `${r.dimension}_${r.mode}`;
+      if (!dimensionSets[key]) dimensionSets[key] = { dimension: r.dimension, mode: r.mode, valueIds: [] };
+      dimensionSets[key].valueIds.push(r.value_id);
+    });
+
+    // Semua dimension+mode dalam grup ini harus terpenuhi (AND)
+    return Object.values(dimensionSets).every(set => checkDimensionSet(set, user));
+  });
+}
+
+function checkDimensionSet(set, user) {
+  const userValue = set.dimension === "departemen" ? user.depId
+                   : set.dimension === "area" ? user.areaId
+                   : set.dimension === "jabatan" ? user.jabatanId
+                   : null;
+
+  return set.mode === "hanya"
+    ? set.valueIds.includes(userValue)
+    : !set.valueIds.includes(userValue);
+}
+
     // ===================================================
     // 3. FUNGSI ACTION CLOCK IN & CLOCK OUT
     // ===================================================
@@ -379,6 +459,9 @@ async function renderDynamicNavigation(user) {
         alert("✅ Berhasil Clock Out pada pukul " + new Date().toLocaleTimeString('id-ID'));
       }
     }
+     document.getElementById("btnInbox")?.addEventListener("click", () => {
+      window.location.href = "pages/inbox.html";
+    });
   </script>
 </body>
 </html>

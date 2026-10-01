@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DMB ERP - Laporan</title>
+
+  <link rel="manifest" href="../manifest.json">
+  <meta name="theme-color" content="#0d6efd">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="../css/style.css">
+
+  <style>
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--card-bg);
+    }
+    .page-header .back-btn { font-size: 1.1rem; color: var(--dark-color); }
+    .page-header h1 { font-size: 1rem; font-weight: 700; color: var(--dark-color); }
+
+    .group-section { padding: 16px 16px 0; }
+    .group-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      padding-left: 4px;
+    }
+    .group-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .menu-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      min-height: 52px;
+      text-decoration: none;
+      color: var(--dark-color);
+      border-bottom: 1px solid var(--border-color);
+    }
+    .menu-row:last-child { border-bottom: none; }
+    .menu-row i { width: 20px; text-align: center; color: #0d6efd; font-size: 1rem; }
+    .menu-row span { font-size: 0.85rem; font-weight: 600; }
+    .menu-row .chevron { margin-left: auto; color: var(--text-muted); font-size: 0.8rem; }
+
+    .empty-state {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      padding: 40px 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <header class="page-header">
+      <a href="../index.html" class="back-btn"><i class="fa-solid fa-arrow-left"></i></a>
+      <h1>Laporan</h1>
+    </header>
+
+    <div id="laporanGroups">
+      <!-- Diisi dinamis oleh js/laporan.js -->
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/menu-engine.js"></script>
+  <script src="../js/laporan.js"></script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('../sw.js')
+          .then((reg) => console.log('[Service Worker] Terdaftar:', reg.scope))
+          .catch((err) => console.error('[Service Worker] Gagal:', err));
+      });
+    }
+  </script>
+</body>
+</html>

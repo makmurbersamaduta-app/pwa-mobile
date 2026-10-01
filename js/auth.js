@@ -254,7 +254,7 @@ async function handleLogin(username, password, isRemember) {
 
         const { data: assignData } = await window.supabaseClient.schema("hrd")
             .from("employee_assignments")
-            .select("departemen_id, area_id")
+            .select("departemen_id, area_id, jabatan_id")
             .eq("is_active", true)
             .eq("employee_id", empData.id)
             .maybeSingle();
@@ -299,8 +299,9 @@ async function handleLogin(username, password, isRemember) {
             roleId: userData.role_id,
             depId: assignData?.departemen_id || null, 
             areaId: assignData?.area_id || null,
-            entitas: areaName,          // <-- BARU: nama area, dipakai di header dashboard index.html
-            departemen: departmentName, // <-- BARU: nama departemen, disimpan untuk kebutuhan lain
+            jabatanId: assignData?.jabatan_id || null,
+            entitas: areaName,
+            departemen: departmentName,
             mustChangePassword: false,
             loginTime: new Date().toISOString()
         };
