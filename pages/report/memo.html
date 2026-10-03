@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DMB ERP - Memo</title>
+
+  <link rel="manifest" href="../../manifest.json">
+  <meta name="theme-color" content="#0d6efd">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="../../css/style.css">
+
+  <style>
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--card-bg);
+    }
+    .page-header .back-btn { font-size: 1.1rem; color: var(--dark-color); }
+    .page-header h1 { font-size: 1rem; font-weight: 700; color: var(--dark-color); }
+
+    .memo-list { padding: 16px; }
+    .memo-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    .memo-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .memo-nama { font-size: 0.88rem; font-weight: 700; color: var(--dark-color); }
+    .memo-tanggal { font-size: 0.72rem; color: var(--text-muted); }
+    .memo-sub { font-size: 0.78rem; color: var(--text-muted); }
+
+    .empty-state {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      padding: 50px 24px;
+    }
+
+    /* Modal -- fit 1 layar, scroll ke bawah */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(15, 23, 42, 0.6);
+      display: none;
+      justify-content: center;
+      align-items: flex-start;
+      z-index: 2000;
+      padding: 0;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-card {
+      background: #ffffff;
+      width: 100%;
+      max-width: 480px;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+    .modal-title { font-size: 0.95rem; font-weight: 700; color: var(--dark-color); }
+    .modal-close { background: none; border: none; font-size: 1.1rem; color: var(--text-muted); }
+
+    .modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+    .form-group { margin-bottom: 14px; }
+    .form-label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--dark-color); margin-bottom: 5px; }
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      box-sizing: border-box;
+    }
+    .form-input[readonly] {
+      background-color: var(--bg-light);
+      color: var(--text-muted);
+    }
+    textarea.form-input { resize: vertical; min-height: 70px; }
+
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      padding: 16px;
+      border-top: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+    .modal-footer button {
+      flex: 1;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .btn-batal { background-color: var(--bg-light); color: var(--dark-color); border: 1px solid var(--border-color); }
+    .btn-setujui { background-color: #16a34a; color: #fff; }
+    .btn-setujui:disabled { opacity: 0.6; }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <header class="page-header">
+      <a href="../laporan.html" class="back-btn"><i class="fa-solid fa-arrow-left"></i></a>
+      <h1>Memo - Persetujuan</h1>
+    </header>
+
+    <div class="memo-list" id="memoList">
+      <!-- Diisi dinamis oleh js/report/memo.js -->
+    </div>
+  </div>
+
+  <!-- Modal Detail & Approval Memo -->
+  <div class="modal-overlay" id="memoModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Detail Memo</h3>
+        <button class="modal-close" id="btnCloseMemoModal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="formMemo">
+          <div class="form-group">
+            <label class="form-label">Jenis Memo</label>
+            <select id="memoJenisMemo" class="form-input">
+              <option value="">-- Pilih Jenis Memo --</option>
+              <option value="Ditagihkan">Ditagihkan</option>
+              <option value="Tidak Ditagihkan">Tidak Ditagihkan</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">No Absen</label>
+            <input type="text" id="memoNoAbsen" class="form-input" readonly>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Nama Karyawan</label>
+            <input type="text" id="memoNamaKaryawan" class="form-input" readonly>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Bagian</label>
+            <input type="text" id="memoBagian" class="form-input" readonly>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Tanggal</label>
+            <input type="text" id="memoTanggal" class="form-input" readonly>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Jam Kerja</label>
+            <input type="number" id="memoJamKerja" class="form-input" step="0.5">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Shift</label>
+            <input type="text" id="memoShift" class="form-input" readonly>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Jenis Pekerjaan</label>
+            <select id="memoJenisPekerjaan" class="form-input">
+              <option value="">-- Pilih Jenis Pekerjaan --</option>
+              <option value="Produksi">Produksi</option>
+              <option value="Revisi Palet">Revisi Palet</option>
+              <option value="Printech">Printech</option>
+              <option value="Revisi QC STG 2">Revisi QC STG 2</option>
+              <option value="Gudang">Gudang</option>
+              <option value="HSE">HSE</option>
+              <option value="Revisi QC STG 1">Revisi QC STG 1</option>
+              <option value="Produksi STG 1">Produksi STG 1</option>
+              <option value="Tidak Ditagihkan">Tidak Ditagihkan</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Deskripsi</label>
+            <textarea id="memoNoteKerja" class="form-input"></textarea>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-batal" id="btnBatalMemo">Batal</button>
+        <button type="button" class="btn-setujui" id="btnSetujuiMemo">
+          <span id="btnSetujuiText">Setujui</span>
+          <i id="btnSetujuiSpinner" class="fa-solid fa-spinner fa-spin" style="display:none;"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../js/supabase.js"></script>
+  <script src="../../js/auth.js"></script>
+  <script src="../../js/report/memo.js"></script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('../../sw.js')
+          .then((reg) => console.log('[Service Worker] Terdaftar:', reg.scope))
+          .catch((err) => console.error('[Service Worker] Gagal:', err));
+      });
+    }
+  </script>
+</body>
+</html>
