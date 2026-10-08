@@ -234,6 +234,7 @@
       object-fit: cover;
       cursor: pointer;
     }
+    .result-clickable:active { background-color: #e2e8f0; }
   </style>
 </head>
 <body>
@@ -296,9 +297,10 @@
 
         <div class="form-group-custom" style="position: relative;">
           <label class="form-label-custom">Kode Artikel <span class="text-danger">*</span></label>
-          <input type="text" id="inKodeArtikel" class="form-input-custom input-uppercase" placeholder="Ketik Kode Artikel..." required autocomplete="off">
+          <input type="text" id="inKodeArtikel" class="form-input-custom input-uppercase" placeholder="Contoh: B1-B1C007-0002A" maxlength="15" required autocomplete="off">
           <!-- Suggestion Box Popup -->
           <div id="suggestionBox" class="suggestion-box" style="display: none;"></div>
+          <small id="kodeArtikelHint" style="display: none; font-size: 0.72rem; margin-top: 4px;"></small>
         </div>
 
         <div class="form-group-custom">
@@ -434,6 +436,60 @@
       <!-- Container Result -->
       <div id="searchResultsContainer" style="margin-top: 16px; max-height: 50vh; overflow-y: auto;">
         <p style="text-align: center; color: var(--text-muted); font-size: 0.8rem;">Silakan masukkan kode artikel untuk mencari stok aktif.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================================================== -->
+  <!-- MODAL DETAIL BARANG (dari klik hasil pencarian)     -->
+  <!-- =================================================== -->
+  <div class="modal-overlay modal-top" id="modalDetail">
+    <div class="modal-sheet">
+      <div class="modal-header" style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 14px;">
+        <h3 class="modal-title"><i class="fa-solid fa-box-open me-2"></i>Detail Barang</h3>
+        <button class="modal-close" onclick="closeDetailModal()" style="background:none; border:none; font-size:1.2rem; cursor:pointer;">&times;</button>
+      </div>
+
+      <div id="detailMessage" style="display:none; font-size:0.78rem; padding:8px 10px; border-radius:8px; margin-bottom:12px;"></div>
+
+      <div class="form-group-custom">
+        <label class="form-label-custom">Kode Artikel</label>
+        <input type="text" id="dtKodeArtikel" class="form-input-custom" readonly>
+      </div>
+      <div class="form-group-custom">
+        <label class="form-label-custom">Nama Barang</label>
+        <input type="text" id="dtNamaBarang" class="form-input-custom" readonly>
+      </div>
+      <div class="form-group-custom">
+        <label class="form-label-custom">Customer</label>
+        <input type="text" id="dtCustomer" class="form-input-custom" readonly>
+      </div>
+      <div class="form-group-custom">
+        <label class="form-label-custom">Batch Number</label>
+        <input type="text" id="dtBatch" class="form-input-custom input-uppercase" readonly>
+      </div>
+      <div class="form-group-custom">
+        <label class="form-label-custom">Qty</label>
+        <input type="text" id="dtQty" class="form-input-custom" inputmode="numeric" readonly>
+      </div>
+      <div class="form-group-custom">
+        <label class="form-label-custom">Tanggal Masuk</label>
+        <input type="text" id="dtTglMasuk" class="form-input-custom" readonly>
+      </div>
+      <div class="form-group-custom">
+        <label class="form-label-custom">Petugas</label>
+        <input type="text" id="dtPetugas" class="form-input-custom" readonly>
+      </div>
+      <div class="form-group-custom">
+        <label class="form-label-custom">Foto</label>
+        <div id="detailFotoWrapper"></div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button type="button" id="btnDetailTutup" class="btn-custom btn-dark-custom" onclick="closeDetailModal()">Tutup</button>
+        <button type="button" id="btnDetailEdit" class="btn-custom btn-warning-custom" style="display:none;">Edit</button>
+        <button type="button" id="btnDetailBatal" class="btn-custom btn-dark-custom" style="display:none;">Batal</button>
+        <button type="button" id="btnDetailSimpan" class="btn-custom btn-success-custom" style="display:none;">Simpan</button>
       </div>
     </div>
   </div>
