@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Permintaan Barang</title>
+
+    <!-- ============================================================
+         KELOMPOK 1: HEAD PWA & STYLE
+         PERLU DISAMAKAN: salin tag <meta> / <link> PWA (theme-color, manifest,
+         ikon, dan <link rel="stylesheet"> CSS proyek) dari <head> memo.html
+         Anda ke sini. Path CSS di bawah hanyalah contoh.
+         Kelas dari contoh Anda (app-container, page-header, back-btn,
+         memo-list) tetap dipakai agar tampilan header sama dengan halaman lain.
+         Semua gaya baru memakai awalan "rq-" dan ditulis di bawah ini.
+         ============================================================ -->
+    <link rel="stylesheet" href="../../css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --rq-primary: #2b6cb0;
+            --rq-primary-dark: #1e4e8c;
+            --rq-soft: #e1ecf5;
+            --rq-border: #d3dfea;
+            --rq-text: #1f2d3d;
+            --rq-muted: #6b7c93;
+            --rq-danger: #d64545;
+        }
+
+        /* Header: tombol "Buat Permintaan" di kanan (hanya tata letak, warna/ukuran ikut CSS proyek) */
+        .rq-page .page-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--card-bg);
+    }
+    .rq-page .page-header .back-btn { font-size: 1.1rem; color: var(--dark-color); }
+    .rq-page .page-header h1 { font-size: 1rem; font-weight: 700; color: var(--dark-color); }
+
+        .rq-btn-new {
+            display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+            margin-left: auto;
+            border: none; border-radius: 8px; padding: 8px 12px; cursor: pointer;
+            background: var(--rq-primary); color: #fff; font-size: 13px; font-weight: 600; font-family: inherit;
+        }
+        .rq-btn-new:disabled { opacity: 0.5; }
+
+        /* Daftar kartu */
+        .rq-list { padding: 12px 14px 90px; }
+        .rq-group {
+            margin: 14px 2px 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+            text-transform: uppercase; color: var(--rq-muted);
+        }
+        .rq-group:first-child { margin-top: 2px; }
+        .rq-card {
+            background: #fff; border: 1px solid var(--rq-border); border-radius: 12px;
+            padding: 12px 14px; margin-bottom: 10px; cursor: pointer;
+            box-shadow: 0 1px 3px rgba(31, 45, 61, 0.06);
+        }
+        .rq-card:active { background: #f4f7fb; }
+        .rq-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+        .rq-card-title { font-size: 14.5px; font-weight: 700; color: var(--rq-text); word-break: break-word; }
+        .rq-card-meta { margin-top: 6px; font-size: 12.5px; color: var(--rq-muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .rq-badge { flex-shrink: 0; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: #e5e7eb; color: #374151; }
+        .rq-badge.diajukan { background: #fef3c7; color: #92400e; }
+        .rq-badge.disetujui { background: #d1fae5; color: #065f46; }
+        .rq-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--rq-soft); color: var(--rq-primary-dark); }
+        .rq-empty, .rq-loading { text-align: center; padding: 40px 16px; color: var(--rq-muted); font-size: 14px; }
+        .rq-more { display: block; width: 100%; margin: 6px 0 0; padding: 10px; border: 1px solid var(--rq-border); border-radius: 10px; background: #fff; color: var(--rq-primary-dark); font-weight: 600; font-family: inherit; }
+
+        /* Modal layar penuh */
+        .rq-modal { position: fixed; inset: 0; z-index: 1000; display: none; flex-direction: column; background: #f4f7fb; }
+        .rq-modal.open { display: flex; }
+        .rq-modal-head {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0;
+            padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px; background: #fff; border-bottom: 1px solid var(--rq-border);
+        }
+        .rq-modal-title { margin: 0; font-size: 16px; font-weight: 700; color: var(--rq-text); }
+        .rq-x { border: none; background: none; font-size: 20px; color: var(--rq-muted); padding: 4px 8px; }
+        .rq-modal-body { flex: 1; overflow-y: auto; padding: 14px; -webkit-overflow-scrolling: touch; }
+        .rq-modal-foot {
+            display: flex; gap: 10px; justify-content: flex-end; flex-shrink: 0;
+            padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid var(--rq-border);
+        }
+        .rq-btn { border: 1px solid var(--rq-border); background: #fff; color: var(--rq-text); border-radius: 8px; padding: 10px 18px; font-size: 14px; font-weight: 600; font-family: inherit; }
+        .rq-btn.primary { background: var(--rq-primary); border-color: var(--rq-primary); color: #fff; }
+        .rq-btn:disabled { opacity: 0.6; }
+        .rq-btn[hidden] { display: none; }
+
+        .rq-field { margin-bottom: 12px; }
+        .rq-label { display: block; font-size: 12px; font-weight: 600; color: var(--rq-muted); margin-bottom: 4px; }
+        .rq-input {
+            width: 100%; border: 1px solid var(--rq-border); border-radius: 8px; padding: 9px 10px;
+            font-size: 14px; background: #fff; color: var(--rq-text); outline: none; font-family: inherit;
+        }
+        .rq-input:focus { border-color: var(--rq-primary); }
+        .rq-input[readonly], .rq-input:disabled { background: #eef2f6; }
+        .rq-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .rq-msg { border-radius: 8px; padding: 9px 12px; font-size: 13px; margin-bottom: 12px; white-space: pre-line; }
+        .rq-msg.danger { background: #fdecec; color: #9b1c1c; }
+        .rq-msg.info { background: #e1ecf5; color: #1e4e8c; }
+        .rq-msg.warning { background: #fef3c7; color: #92400e; }
+        .rq-msg[hidden] { display: none; }
+
+        /* Tabel barang (ringkas untuk layar HP) */
+        .rq-table-wrap { background: #fff; border: 1px solid var(--rq-border); border-radius: 10px; overflow-x: auto; }
+        .rq-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; min-width: 330px; }
+        .rq-table th { background: var(--rq-soft); padding: 8px 5px; text-align: left; font-size: 11.5px; font-weight: 700; color: var(--rq-text); }
+        .rq-table td { padding: 5px; border-top: 1px solid var(--rq-border); vertical-align: middle; }
+        .rq-table tr.invalid td { background: #fdecec; }
+        .rq-col-kode { width: 29%; }
+        .rq-col-qty { width: 15%; }
+        .rq-col-satuan { width: 11%; }
+        .rq-col-foto { width: 11%; }
+        .rq-col-aksi { width: 8%; }
+        .rq-cell-input { width: 100%; border: 1px solid var(--rq-border); border-radius: 6px; padding: 6px 5px; font-size: 12px; background: #fff; font-family: inherit; outline: none; min-width: 0; }
+        .rq-cell-input:focus { border-color: var(--rq-primary); }
+        .rq-nama { white-space: normal; word-break: break-word; line-height: 1.3; }
+        .rq-qty-text { text-align: right; }
+        .rq-thumb { width: 34px; height: 34px; object-fit: cover; border: 1px solid var(--rq-border); border-radius: 5px; display: block; }
+        .rq-row-del { border: none; background: none; color: var(--rq-danger); font-size: 14px; padding: 4px; }
+        .rq-dash { color: var(--rq-muted); }
+        .rq-placeholder td { text-align: center; padding: 22px; color: var(--rq-muted); }
+        .rq-hint { font-size: 12px; color: var(--rq-muted); margin-top: 8px; }
+
+        /* Saran Kode Barang */
+        .rq-suggest {
+            position: fixed; z-index: 1100; background: #fff; border: 1px solid var(--rq-border); border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(31, 45, 61, 0.2); max-height: 240px; overflow-y: auto; display: none;
+        }
+        .rq-suggest-item { padding: 9px 11px; font-size: 13px; border-bottom: 1px solid #eef2f6; word-break: break-word; }
+        .rq-suggest-item:last-child { border-bottom: none; }
+        .rq-suggest-item.active { background: var(--rq-soft); }
+        .rq-suggest-note { padding: 8px 11px; font-size: 12px; color: var(--rq-muted); background: #fafbfc; }
+
+        .rq-toast {
+            position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+            z-index: 1200; background: #1f2d3d; color: #fff; padding: 10px 16px; border-radius: 10px;
+            font-size: 13px; max-width: 90vw; text-align: center; display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================
+         KELOMPOK 2: HEADER & DAFTAR KARTU
+         Fungsi: tombol kembali, judul "Permintaan Barang", tombol
+         "Buat Permintaan" di kanan. Kartu diisi dinamis oleh request.js.
+         ============================================================ -->
+    <div class="app-container rq-page">
+        <header class="page-header">
+            <a href="../laporan.html" class="back-btn"><i class="fa-solid fa-arrow-left"></i></a>
+            <h1>Permintaan Barang</h1>
+            <button type="button" class="rq-btn-new" id="btnBuat"><i class="fa-solid fa-plus"></i> Buat Permintaan</button>
+        </header>
+
+        <div class="memo-list rq-list" id="requestList">
+            <!-- Diisi dinamis oleh request.js -->
+        </div>
+    </div>
+
+    <!-- ============================================================
+         KELOMPOK 3: MODAL (Buat / Detail / Edit)
+         Fungsi: satu modal layar penuh untuk tiga mode (diatur JS):
+           - Buat   : form kosong, tombol Batal + Simpan
+           - Detail : semua readonly, tombol Tutup + Edit (jika memenuhi syarat)
+           - Edit   : kolom terbuka, tombol Batal + Simpan
+         ============================================================ -->
+    <div class="rq-modal" id="rqModal" role="dialog" aria-modal="true">
+        <div class="rq-modal-head">
+            <h2 class="rq-modal-title" id="rqTitle">Buat Permintaan</h2>
+            <button type="button" class="rq-x" id="rqBtnX" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="rq-modal-body" id="rqBody">
+            <div class="rq-msg" id="rqMsg" hidden></div>
+
+            <div class="rq-two">
+                <div class="rq-field">
+                    <label class="rq-label" for="rqKode">Kode Batch</label>
+                    <input type="text" class="rq-input" id="rqKode" readonly>
+                </div>
+                <div class="rq-field">
+                    <label class="rq-label" for="rqTanggal">Tanggal</label>
+                    <input type="text" class="rq-input" id="rqTanggal" readonly>
+                </div>
+            </div>
+
+            <div class="rq-field">
+                <label class="rq-label" for="rqPeriode">Periode Permintaan</label>
+                <select class="rq-input" id="rqPeriode"><option value="">Pilih Periode</option></select>
+                <input type="text" class="rq-input" id="rqPeriodeTxt" readonly hidden>
+            </div>
+
+            <div class="rq-field" id="rqStatusWrap" hidden>
+                <label class="rq-label" for="rqStatus">Status</label>
+                <input type="text" class="rq-input" id="rqStatus" readonly>
+            </div>
+
+            <div class="rq-table-wrap">
+                <table class="rq-table">
+                    <colgroup>
+                        <col class="rq-col-kode"><col><col class="rq-col-qty"><col class="rq-col-satuan"><col class="rq-col-foto"><col class="rq-col-aksi">
+                    </colgroup>
+                    <thead>
+                        <tr><th>Kode Barang</th><th>Nama Barang</th><th>Qty</th><th>Satuan</th><th>Foto</th><th></th></tr>
+                    </thead>
+                    <tbody id="rqTbody"></tbody>
+                </table>
+            </div>
+            <div class="rq-hint" id="rqHint"></div>
+        </div>
+
+        <div class="rq-modal-foot">
+            <button type="button" class="rq-btn" id="rqBtnTutup">Tutup</button>
+            <button type="button" class="rq-btn" id="rqBtnBatal" hidden>Batal</button>
+            <button type="button" class="rq-btn primary" id="rqBtnEdit" hidden><i class="fa-solid fa-pen"></i> Edit</button>
+            <button type="button" class="rq-btn primary" id="rqBtnSimpan" hidden><i class="fa-solid fa-floppy-disk"></i> Simpan</button>
+        </div>
+    </div>
+
+    <div class="rq-toast" id="rqToast"></div>
+
+    <!-- ============================================================
+         KELOMPOK 4: SCRIPT
+         PERLU DICEK: path supabase.js dan request.js. Samakan dengan
+         halaman PWA lain (mis. memo.html) yang sudah berjalan.
+         ============================================================ -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../../js/supabase.js"></script>
+    <script src="../../js/report/permintaan-barang.js"></script>
+</body>
+</html>
