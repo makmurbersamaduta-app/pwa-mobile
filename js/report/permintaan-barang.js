@@ -34,7 +34,7 @@ const EDITABLE_STATUS = ["Diajukan", "Disetujui"];   // status yang boleh diedit
 
 // Barang yang bernilai false di kolom cabangnya disembunyikan dari pencarian
 const BATASI_BARANG_PER_CABANG = true;
-const BRANCH_FLAG_COLUMN = { 1: "is_makassar", 2: "is_surabaya" };
+const BRANCH_FLAG_COLUMN = { 2: "is_makassar", 1: "is_surabaya" };
 
 // ===================================================
 // KELOMPOK 2: STATE (DATA SEMENTARA DI MEMORI)
