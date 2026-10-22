@@ -4,6 +4,9 @@ const SESSION_KEY = "pwa_mobile_session";
 const REMEMBER_KEY = "pwa_mobile_remember";
 const SYNTHETIC_DOMAIN = "@supabase.mail";
 
+// Alamat halaman login. Halaman di dalam folder /pages/ harus naik satu folder (../).
+const LOGIN_URL = window.location.pathname.toLowerCase().includes("/pages/") ? "../login.html" : "login.html";
+
 document.addEventListener("DOMContentLoaded", () => {
     // ---------------------------------------------------------
     // 1. REVERSE GUARD & PATH CHECKING (Diperketat untuk GitHub Pages)
@@ -17,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!activeSession) {
         // Jika tidak ada sesi dan bukan di halaman login -> Tendang paksa ke login.html
         if (!isLoginPage) {
-            window.location.replace("login.html");
+            window.location.replace(LOGIN_URL);
             return; 
         }
     } else {
@@ -25,6 +28,23 @@ document.addEventListener("DOMContentLoaded", () => {
         if (isLoginPage) {
             window.location.replace("index.html");
             return; 
+        }
+    }
+
+    // ---------------------------------------------------------
+    // 1b. CEK SESI SUPABASE AUTH (PERBAIKAN BOTTOM NAV HILANG)
+    // Sesi lokal di atas tidak punya masa berlaku. Token Supabase punya.
+    // Kalau token sudah mati, user dikeluarkan otomatis ke halaman login.
+    // ---------------------------------------------------------
+    if (activeSession && !isLoginPage) {
+        ensureValidAuthSession();
+
+        if (window.supabaseClient) {
+            window.supabaseClient.auth.onAuthStateChange((event) => {
+                // setTimeout wajib: memanggil fungsi Supabase langsung di dalam
+                // callback ini bisa membuat proses macet (deadlock).
+                if (event === "SIGNED_OUT") setTimeout(() => forceLogoutToLogin(), 0);
+            });
         }
     }
 
@@ -193,8 +213,54 @@ async function handleRequestReset() {
 function checkAuthGuard() {
     const activeSession = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
     if (!activeSession) {
-        window.location.replace("login.html");
+        window.location.replace(LOGIN_URL);
     }
+}
+
+// ===================================================
+// FUNGSI CEK SESI SUPABASE AUTH
+// Dipanggil saat halaman dibuka dan saat app kembali dari background.
+// Return true  = sesi sehat (atau tidak bisa dipastikan karena offline)
+// Return false = sesi mati, user sedang diarahkan ke login
+// ===================================================
+async function ensureValidAuthSession() {
+    // Halaman yang tidak memuat supabase.js: lewati, jangan sampai error
+    if (!window.supabaseClient) return true;
+
+    try {
+        // getSession() otomatis mencoba memperbarui token yang kedaluwarsa
+        const { data, error } = await window.supabaseClient.auth.getSession();
+        if (data?.session) return true;
+
+        // Offline / jaringan bermasalah: jangan keluarkan user hanya karena ini
+        if (!navigator.onLine || error?.name === "AuthRetryableFetchError") return true;
+
+        await forceLogoutToLogin();
+        return false;
+    } catch (err) {
+        console.error("[Auth] Gagal mengecek sesi:", err);
+        return true; // error tak terduga: jangan keluarkan user
+    }
+}
+
+// ===================================================
+// FUNGSI KELUARKAN USER KE LOGIN (membersihkan sesi lokal + token Supabase)
+// Username "Ingat Saya" (REMEMBER_KEY) sengaja tidak dihapus.
+// ===================================================
+async function forceLogoutToLogin() {
+    if (window._forceLogoutRunning) return; // cegah pemanggilan berulang
+    window._forceLogoutRunning = true;
+
+    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_KEY);
+
+    try {
+        await window.supabaseClient?.auth.signOut({ scope: "local" });
+    } catch (err) {
+        console.error("[Auth] signOut lokal gagal:", err);
+    }
+
+    window.location.replace(LOGIN_URL);
 }
 
 // ===================================================

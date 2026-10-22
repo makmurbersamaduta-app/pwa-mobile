@@ -161,6 +161,28 @@
       font-weight: 600;
       line-height: 1.4;
     }
+
+    /* Kelompok ikon di kanan header: Akun + Inbox */
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+    #btnAkun {
+      text-decoration: none;
+    }
+
+    /* Pesan kosong / gagal pada grid akses cepat */
+    .grid-empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      padding: 16px 8px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+    }
   </style>
 </head>
 <body>
@@ -177,9 +199,15 @@
           <div class="user-status" id="lblUserRole">Status Shift: Shift Regular</div>
         </div>
       </div>
-      <div class="header-action" id="btnInbox" title="Buka Inbox">
-        <i class="fa-solid fa-bell notification-bell"></i>
-        <span class="badge-count" id="lblNotificationCount" style="display:none;">0</span>
+      <div class="header-actions">
+        <!-- Akun: elemen tetap, tidak bergantung pada hasil query menu -->
+        <a href="pages/akun.html" class="header-action" id="btnAkun" title="Akun">
+          <i class="fa-solid fa-circle-user notification-bell"></i>
+        </a>
+        <div class="header-action" id="btnInbox" title="Buka Inbox">
+          <i class="fa-solid fa-bell notification-bell"></i>
+          <span class="badge-count" id="lblNotificationCount" style="display:none;">0</span>
+        </div>
       </div>
     </header>
 
@@ -263,189 +291,155 @@
   <!-- Skrip Logika Dinamis Dashboard Home -->
   <script>
     // ===================================================
-    // 1. SIMULASI DATA USER / SKENARIO PROFILE HAK AKSES
+    // 1. PENGATURAN MENU: BOTTOM NAV & AKSES CEPAT
     // ===================================================
-    // KETENTUAN SKENARIO UNTUK PENGUJIAN TAMPILAN:
-    // Skenario A: { entitas: 'DMB', departemen: 'FINANCE' } -> 4 Ikon Menu (Home, Company Report, Akun)
-    // Skenario B: { entitas: 'PT. Sentralindo Teguh Gemilang', departemen: 'LABOUR SUPPLY' } -> 5 Ikon Menu (Home, OMS, Sisa Wrapping, Company Report, Akun)
-    // Skenario C: { entitas: 'PT. Sentralindo Teguh Gemilang', departemen: 'LABOUR SUPPLY & SECURITY' } -> 6 Ikon Menu (Home, Patroli, OMS, Sisa Wrapping, Company Report, Akun)
+    // Bottom nav hanya menampilkan 5 menu ini, urutannya mengikuti urutan di bawah.
+    // Menu tetap harus lolos role_permissions + menu_access_rules (lewat fetchAllowedMenus).
+    const BOTTOM_NAV_CODES = ["PWA-HOME-01", "PWA-OPS-01", "PWA-OPS-02", "PWA-OPS-03", "PWA-REPORT-01"];
 
-document.addEventListener("DOMContentLoaded", async () => {
-  const sessionDataRaw = localStorage.getItem("pwa_mobile_session") || sessionStorage.getItem("pwa_mobile_session");
+    // Akses cepat hanya menampilkan sub-menu Laporan (awalan PWA-REPORT-),
+    // tanpa hub Laporan itu sendiri (PWA-REPORT-01), sama seperti di laporan.js.
+    const REPORT_PREFIX = "PWA-REPORT-";
+    const REPORT_HUB_CODE = "PWA-REPORT-01";
 
-  let currentUser = null;
-  if (sessionDataRaw) {
-    currentUser = JSON.parse(sessionDataRaw);
-  } else {
-    // Fallback dummy untuk testing tanpa login
-    currentUser = {
-      roleId: 5,
-      depId: 5,
-      areaId: 3,
-      fullName: "Budi Santoso",
-      username: "DMB11001",
-      entitas: "PT. Sentralindo Teguh Gemilang"
-    };
-  }
+    let currentUser = null;     // data user dari sesi lokal
+    let menuLoadedOk = false;   // true kalau menu berhasil dimuat (dipakai saat app dibuka kembali)
 
-  document.getElementById("lblUserName").innerText = currentUser.fullName || currentUser.username;
-  document.getElementById("lblUserRole").innerText = `Area: ${currentUser.entitas || 'PT. DMB'}`;
+    // ===================================================
+    // 2. SAAT HALAMAN DIBUKA
+    // ===================================================
+    document.addEventListener("DOMContentLoaded", async () => {
+      const sessionDataRaw = localStorage.getItem("pwa_mobile_session") || sessionStorage.getItem("pwa_mobile_session");
 
-  await renderDynamicNavigation(currentUser);
-});
+      if (sessionDataRaw) {
+        currentUser = JSON.parse(sessionDataRaw);
+      } else {
+        // Fallback dummy untuk testing tanpa login
+        currentUser = {
+          roleId: 5,
+          depId: 5,
+          areaId: 3,
+          fullName: "Budi Santoso",
+          username: "DMB11001",
+          entitas: "PT. Sentralindo Teguh Gemilang"
+        };
+      }
 
-// ===================================================
-// RENDER MENU DATA-DRIVEN DARI app_menus + role_permissions
-// ===================================================
-async function renderDynamicNavigation(user) {
-  const bottomNav = document.getElementById("bottomNav");
-  const quickAccessGrid = document.getElementById("quickAccessGrid");
+      document.getElementById("lblUserName").innerText = currentUser.fullName || currentUser.username;
+      document.getElementById("lblUserRole").innerText = `Area: ${currentUser.entitas || 'PT. DMB'}`;
 
-  const activeMenus = await fetchAllowedMenus(user);
+      // Pastikan token Supabase masih hidup SEBELUM mengambil menu.
+      // Kalau sudah mati, user otomatis diarahkan ke halaman login (fungsi ada di auth.js).
+      const sessionOk = await ensureValidAuthSession();
+      if (!sessionOk) return;
 
-// ===================================================
-// MODAL "LAINNYA" -- menampilkan menu ke-5 dst yang tidak muat di bottom nav
-// ===================================================
-function renderMoreMenuModal(menus) {
-  let existingModal = document.getElementById("moreMenuModal");
-  if (existingModal) existingModal.remove();
-
-  const itemsHtml = menus.map(menu => `
-    <a href="${menu.path_url}" style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border-color); color:var(--dark-color); text-decoration:none;">
-      <i class="fa-solid ${menu.icon_class}" style="width:20px; color:#0d6efd;"></i>
-      <span style="font-size:0.85rem; font-weight:600;">${menu.menu_name}</span>
-    </a>
-  `).join("");
-
-  const modalHtml = `
-    <div class="modal-overlay show" id="moreMenuModal" style="align-items:flex-end;">
-      <div style="background:#fff; width:100%; max-width:480px; border-radius:16px 16px 0 0; max-height:70vh; overflow-y:auto;">
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-color);">
-          <strong style="font-size:0.95rem;">Menu Lainnya</strong>
-          <button onclick="document.getElementById('moreMenuModal').remove()" style="background:none; border:none; font-size:1.2rem; color:var(--text-muted);">&times;</button>
-        </div>
-        ${itemsHtml}
-      </div>
-    </div>
-  `;
-  document.body.insertAdjacentHTML("beforeend", modalHtml);
-}
-
-  // Render Bottom Navigation Bar -- maksimal 4 tab + "Lainnya" kalau hasil filter >5
-  let navMenus = activeMenus;
-  let overflowMenus = [];
-
-  if (activeMenus.length > 5) {
-    navMenus = activeMenus.slice(0, 4);
-    overflowMenus = activeMenus.slice(4);
-  }
-
-  let navHtml = "";
-  navMenus.forEach(menu => {
-    const isActive = menu.menu_code === "PWA-HOME-01" ? "active" : "";
-    navHtml += `
-      <a href="${menu.path_url}" class="nav-item ${isActive}">
-        <i class="fa-solid ${menu.icon_class}"></i>
-        <span>${menu.menu_name}</span>
-      </a>
-    `;
-  });
-
-  if (overflowMenus.length > 0) {
-    navHtml += `
-      <a href="#" class="nav-item" id="btnOpenMoreMenu">
-        <i class="fa-solid fa-ellipsis"></i>
-        <span>Lainnya</span>
-      </a>
-    `;
-  }
-  bottomNav.innerHTML = navHtml;
-
-  // Simpan sisa menu overflow untuk dipakai modal "Lainnya"
-  window._overflowMenus = overflowMenus;
-
-  const btnOpenMoreMenu = document.getElementById("btnOpenMoreMenu");
-  if (btnOpenMoreMenu) {
-    btnOpenMoreMenu.addEventListener("click", (e) => {
-      e.preventDefault();
-      renderMoreMenuModal(overflowMenus);
-    });
-  }
-
-  // Render Quick Access Grid (warna ikon seragam, diatur lewat CSS .grid-icon-wrapper)
-  let gridHtml = "";
-  activeMenus.forEach(menu => {
-    gridHtml += `
-      <a href="${menu.path_url}" class="grid-item">
-        <div class="grid-icon-wrapper">
-          <i class="fa-solid ${menu.icon_class}"></i>
-        </div>
-        <span class="grid-label">${menu.menu_name}</span>
-      </a>
-    `;
-  });
-  quickAccessGrid.innerHTML = gridHtml;
-}
-
-// ===================================================
-// RESOLUSI AKSES BERDASARKAN menu_access_rules
-// Aturan: lolos role_permissions (sudah difilter sebelumnya) DAN
-// lolos ketiga dimensi (departemen/area/jabatan) -- dimensi tanpa
-// rule dianggap tidak dibatasi. Role 1 (Maintenance) bypass total,
-// tidak dicek ke tabel ini sama sekali.
-// ===================================================
-async function filterMenusByAccessRules(menuRows, user) {
-  if (user.roleId === 1) return menuRows; // Maintenance bypass total
-
-  if (menuRows.length === 0) return [];
-
-  const menuCodes = menuRows.map(m => m.menu_code);
-
-  const { data: rules, error } = await window.supabaseClient
-    .from("menu_access_rules")
-    .select("menu_code, dimension, mode, value_id, rule_group")
-    .in("menu_code", menuCodes);
-
-  if (error) {
-    console.error("[Menu Access] Gagal load menu_access_rules:", error);
-    return menuRows; // fail-open: kalau query rule gagal, jangan sampai semua menu hilang
-  }
-
-  return menuRows.filter(menu => isAllowedByRules(menu.menu_code, rules, user));
-}
-
-function isAllowedByRules(menuCode, rules, user) {
-  const menuRules = rules.filter(r => r.menu_code === menuCode);
-  if (menuRules.length === 0) return true;
-
-  const groupIds = [...new Set(menuRules.map(r => r.rule_group))];
-
-  return groupIds.some(groupId => {
-    const groupRules = menuRules.filter(r => r.rule_group === groupId);
-
-    // Gabungkan value_id per dimension+mode dalam grup ini jadi satu set
-    const dimensionSets = {};
-    groupRules.forEach(r => {
-      const key = `${r.dimension}_${r.mode}`;
-      if (!dimensionSets[key]) dimensionSets[key] = { dimension: r.dimension, mode: r.mode, valueIds: [] };
-      dimensionSets[key].valueIds.push(r.value_id);
+      await renderDynamicNavigation(currentUser);
     });
 
-    // Semua dimension+mode dalam grup ini harus terpenuhi (AND)
-    return Object.values(dimensionSets).every(set => checkDimensionSet(set, user));
-  });
-}
+    // ===================================================
+    // 3. SAAT APP KEMBALI DARI BACKGROUND (kasus utama menu hilang)
+    // ===================================================
+    document.addEventListener("visibilitychange", async () => {
+      if (document.visibilityState !== "visible" || !currentUser) return;
 
-function checkDimensionSet(set, user) {
-  const userValue = set.dimension === "departemen" ? user.depId
-                   : set.dimension === "area" ? user.areaId
-                   : set.dimension === "jabatan" ? user.jabatanId
-                   : null;
+      const sessionOk = await ensureValidAuthSession();
+      if (!sessionOk) return;
 
-  return set.mode === "hanya"
-    ? set.valueIds.includes(userValue)
-    : !set.valueIds.includes(userValue);
-}
+      // Muat ulang menu hanya kalau sebelumnya gagal dimuat
+      if (!menuLoadedOk) await renderDynamicNavigation(currentUser);
+    });
+
+    // ===================================================
+    // 4. RENDER BOTTOM NAV + AKSES CEPAT
+    // ===================================================
+    async function renderDynamicNavigation(user) {
+      const bottomNav = document.getElementById("bottomNav");
+      const quickAccessGrid = document.getElementById("quickAccessGrid");
+
+      const activeMenus = await fetchAllowedMenus(user);
+
+      // Hasil kosong total (bahkan Home tidak ada) = hampir pasti gagal memuat, bukan memang tidak ada menu
+      if (activeMenus.length === 0) {
+        menuLoadedOk = false;
+        renderMenuError(bottomNav, quickAccessGrid);
+        return;
+      }
+      menuLoadedOk = true;
+
+      // Ikon Akun di header: alamat bawaan sudah ada di HTML.
+      // Kalau menu "Akun" ketemu di hasil query, pakai alamat dari database.
+      const akunMenu = activeMenus.find(m => (m.menu_name || "").trim().toLowerCase() === "akun");
+      if (akunMenu && akunMenu.path_url) {
+        document.getElementById("btnAkun").setAttribute("href", akunMenu.path_url);
+      }
+
+      // Bottom nav: ambil hanya 5 menu terdaftar, sesuai urutan BOTTOM_NAV_CODES
+      const navMenus = BOTTOM_NAV_CODES
+        .map(code => activeMenus.find(m => m.menu_code === code))
+        .filter(Boolean);
+
+      bottomNav.innerHTML = navMenus.map(menu => {
+        const isActive = menu.menu_code === "PWA-HOME-01" ? "active" : "";
+        return `
+          <a href="${menu.path_url}" class="nav-item ${isActive}">
+            <i class="fa-solid ${menu.icon_class}"></i>
+            <span>${menu.menu_name}</span>
+          </a>
+        `;
+      }).join("");
+
+      // Akses cepat: hanya sub-menu Laporan
+      const reportMenus = activeMenus.filter(m =>
+        m.menu_code.startsWith(REPORT_PREFIX) && m.menu_code !== REPORT_HUB_CODE
+      );
+
+      if (reportMenus.length === 0) {
+        quickAccessGrid.innerHTML = `<div class="grid-empty">Belum ada menu Laporan untuk akun Anda.</div>`;
+        return;
+      }
+
+      quickAccessGrid.innerHTML = reportMenus.map(menu => `
+        <a href="${resolveReportUrl(menu.path_url)}" class="grid-item">
+          <div class="grid-icon-wrapper">
+            <i class="fa-solid ${menu.icon_class}"></i>
+          </div>
+          <span class="grid-label">${menu.menu_name}</span>
+        </a>
+      `).join("");
+    }
+
+    // ===================================================
+    // ALAMAT MENU LAPORAN UNTUK AKSES CEPAT
+    // path_url menu Laporan di database ditulis relatif terhadap folder pages/
+    // (karena laporan.html ada di dalam pages/). index.html ada di root, jadi
+    // perlu ditambah awalan "pages/". Alamat penuh (http) atau yang sudah
+    // berawalan "pages/" dibiarkan apa adanya.
+    // ===================================================
+    function resolveReportUrl(pathUrl) {
+      if (!pathUrl) return "#";
+      if (/^https?:\/\//i.test(pathUrl)) return pathUrl;
+      const clean = pathUrl.replace(/^\.?\/+/, "");
+      return clean.startsWith("pages/") ? clean : "pages/" + clean;
+    }
+
+    // ===================================================
+    // 5. TAMPILAN CADANGAN KALAU MENU GAGAL DIMUAT
+    // ===================================================
+    function renderMenuError(bottomNav, quickAccessGrid) {
+      bottomNav.innerHTML = `
+        <a href="#" class="nav-item" id="btnRetryMenu">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Muat ulang menu</span>
+        </a>
+      `;
+      quickAccessGrid.innerHTML = `<div class="grid-empty">Menu gagal dimuat. Periksa koneksi, lalu tekan "Muat ulang menu".</div>`;
+
+      document.getElementById("btnRetryMenu").addEventListener("click", async (e) => {
+        e.preventDefault();
+        const sessionOk = await ensureValidAuthSession();
+        if (sessionOk) await renderDynamicNavigation(currentUser);
+      });
+    }
 
     // ===================================================
     // 3. FUNGSI ACTION CLOCK IN & CLOCK OUT

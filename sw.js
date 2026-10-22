@@ -1,5 +1,5 @@
 // File: sw.js
-const CACHE_NAME = 'pwa-mobile-v6';
+const CACHE_NAME = 'pwa-mobile-v7';
 
 // [GUNAKAN RELATIVE PATH AGAR COMPATIBLE DENGAN GITHUB PAGES]
 const ASSETS_TO_CACHE = [
@@ -11,6 +11,7 @@ const ASSETS_TO_CACHE = [
   'js/auth.js',
   'js/supabase.js',
   'js/menu-restrictions.js',
+  'js/menu-engine.js',
   'js/wrapping.js'
 ];
 
