@@ -12,7 +12,7 @@
 // ===================================================
 const SESSION_KEY = "pwa_mobile_session";   // sesi login PWA: username, branchId, areaId
 // PERLU DICEK: halaman login PWA, dipakai tombol di layar "Sesi tidak ditemukan".
-const LOGIN_URL = "index.html";
+const LOGIN_URL = "../index.html";
 
 const SCHEMA_SECURITY = "security";
 const TABLE_LAPORAN = "laporan_patroli";
@@ -34,6 +34,9 @@ const FETCH_CHUNK = 1000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HINT_DEFAULT = "Arahkan kamera ke QR Code titik patroli";
+// Penanda versi skrip (tampil di bawah tombol "Kirim Sekarang" pada riwayat scan).
+// Berguna untuk memastikan HP memakai file terbaru, bukan salinan lama di cache PWA.
+const APP_VERSION = "2026-10-22 c (sesi: localStorage + sessionStorage)";
 
 // ===================================================
 // KELOMPOK 2: STATE (DATA SEMENTARA DI MEMORI)
@@ -47,12 +50,8 @@ const state = {
     titikLoaded: false,     // true jika daftar titik sudah pernah berhasil diambil
     titikCacheAt: 0,
     lastPos: null,          // { lat, lng, acc, at }
-    stream: null,
-    detector: null,         // BarcodeDetector bawaan browser (jika ada)
-    cameraOn: false,
-    raf: null,
-    lastFrameAt: 0,
-    decoding: false,
+    scanner: null,          // instance Html5Qrcode
+    scannerState: "idle",   // idle | starting | running | stopping
     busy: false,            // true saat memproses scan / notifikasi tampil
     sheetOpen: false,
     lastIgnored: { text: "", at: 0 },
@@ -119,14 +118,48 @@ function storeKey(name) { return `patroli_${name}_v1_${state.session.username}`;
 // Fungsi: membaca pwa_mobile_session. Dipakai: username (-> petugas),
 // branchId (-> branch_id), areaId (-> area_id).
 // ===================================================
+let sessionProblem = "";     // penjelasan singkat jika sesi tidak bisa dipakai (ditampilkan di layar)
+
 function readSession() {
-    const s = loadJson(SESSION_KEY, null);
-    if (!s) return null;
-    const username = String(s.username || "").trim();
-    const branchId = parseInt(s.branchId, 10);
-    const areaId = parseInt(s.areaId, 10);
-    if (!username) return null;
-    return { username, branchId, areaId };
+    sessionProblem = "";
+
+    // Dicari di localStorage lalu sessionStorage (sama seperti menu wrapping).
+    let raw = null, where = "";
+    for (const name of ["localStorage", "sessionStorage"]) {
+        try {
+            const v = window[name].getItem(SESSION_KEY);
+            if (v) { raw = v; where = name; break; }
+        } catch (err) {
+            console.warn("Tidak bisa membaca", name, err);
+        }
+    }
+    if (!raw) {
+        sessionProblem = `Kunci "${SESSION_KEY}" tidak ada di localStorage maupun sessionStorage pada alamat ${window.location.origin}. ` +
+            "Login harus dilakukan di alamat (domain dan port) yang sama dengan halaman ini. Jika login tersimpan di sessionStorage, " +
+            "halaman ini harus dibuka di tab yang sama dengan tab login.";
+        return null;
+    }
+
+    let s;
+    try {
+        s = JSON.parse(raw);
+    } catch (err) {
+        sessionProblem = `Isi "${SESSION_KEY}" di ${where} bukan JSON yang valid.`;
+        return null;
+    }
+
+    const username = String((s && s.username) || "").trim();
+    if (!username) {
+        const keys = s && typeof s === "object" ? Object.keys(s).join(", ") : "(bukan objek)";
+        sessionProblem = `Sesi ditemukan di ${where}, tetapi field "username" kosong atau tidak ada. Field yang ada: ${keys}.`;
+        return null;
+    }
+    return {
+        username,
+        fullName: String((s && s.fullName) || "").trim(),    // hanya untuk tampilan
+        branchId: parseInt(s.branchId, 10),
+        areaId: parseInt(s.areaId, 10)
+    };
 }
 
 // ===================================================
@@ -190,6 +223,24 @@ function showBlock(title, text, btnText, onClick) {
 }
 
 function hideBlock() { $("block").hidden = true; }
+
+// Pesan kesalahan kecil di layar, supaya masalah terlihat tanpa perlu membuka Console
+function showErrorBar(message) {
+    const el = $("errBar");
+    if (!el) return;
+    el.textContent = `${message} (ketuk untuk menutup)`;
+    el.hidden = false;
+    el.onclick = () => { el.hidden = true; };
+}
+
+window.addEventListener("error", (e) => {
+    if (/ResizeObserver/i.test(e.message || "")) return;
+    showErrorBar(`Error: ${e.message || "tidak diketahui"}${e.lineno ? ` (baris ${e.lineno})` : ""}`);
+});
+window.addEventListener("unhandledrejection", (e) => {
+    const r = e.reason;
+    showErrorBar(`Error: ${r && r.message ? r.message : String(r)}`);
+});
 
 function statusLine() {
     const n = pendingItems().length;
@@ -330,94 +381,63 @@ function getPosition() {
 
 // ===================================================
 // KELOMPOK 9: KAMERA & PEMBACA QR
-// Fungsi: membuka kamera belakang dan membaca QR terus-menerus (maksimal
-// 10 kali per detik). Memakai BarcodeDetector bawaan browser jika ada
-// (Chrome Android), jika tidak memakai jsQR (iPhone dan lainnya).
-// Kamera dimatikan saat aplikasi di latar belakang untuk hemat baterai.
+// Fungsi: membuka kamera belakang dan membaca QR memakai library html5-qrcode
+// (Html5Qrcode), library yang SAMA dengan menu Barang OUT wrapping dan sudah
+// terbukti berjalan di HP Anda. Library mengurus kamera, fokus, dan pembacaan
+// QR; kode ini hanya menyalakan, mematikan, dan meneruskan hasil baca ke
+// handleScan(). Kamera dimatikan saat aplikasi di latar belakang (hemat baterai).
 // ===================================================
-async function initDetector() {
-    try {
-        if ("BarcodeDetector" in window) {
-            const formats = await BarcodeDetector.getSupportedFormats();
-            if (formats.includes("qr_code")) state.detector = new BarcodeDetector({ formats: ["qr_code"] });
-        }
-    } catch (err) {
-        console.warn("BarcodeDetector tidak dipakai:", err);
+function cameraErrorText(err) {
+    const t = String(err && err.message ? err.message : err);
+    if (/NotAllowed|Permission|denied/i.test(t)) {
+        return "Izin kamera ditolak. Aktifkan izin kamera untuk aplikasi ini di pengaturan HP, lalu tekan Coba Lagi.";
     }
+    if (/NotFound|no camera|device not found/i.test(t)) return "Kamera tidak ditemukan di perangkat ini.";
+    if (/NotReadable|Could not start|in use/i.test(t)) {
+        return "Kamera sedang dipakai aplikasi atau tab lain. Tutup yang lain lalu tekan Coba Lagi.";
+    }
+    if (/secure|https/i.test(t)) return "Kamera hanya bisa dipakai lewat HTTPS.";
+    return `Kamera tidak bisa dibuka: ${t}`;
 }
 
 async function startCamera() {
-    if (state.cameraOn) return;
+    if (state.scannerState !== "idle") return;     // mencegah kamera dibuka dua kali bersamaan
     hideBlock();
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showBlock("Kamera tidak tersedia",
-            "Browser tidak mendukung kamera, atau halaman tidak dibuka lewat HTTPS. Buka aplikasi lewat alamat HTTPS.", "Coba Lagi", startCamera);
+    if (typeof Html5Qrcode === "undefined") {
+        showBlock("Library scanner belum termuat",
+            "File html5-qrcode tidak termuat. Periksa koneksi, atau tag <script> html5-qrcode di patroli.html (samakan dengan halaman wrapping), lalu muat ulang.",
+            "Muat Ulang", () => window.location.reload());
         return;
     }
+    state.scannerState = "starting";
     try {
-        state.stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false
-        });
-        const video = $("cam");
-        video.srcObject = state.stream;
-        await video.play();
-        state.cameraOn = true;
-        state.raf = requestAnimationFrame(tick);
+        state.scanner = new Html5Qrcode("qr-reader");
+        await state.scanner.start(
+            { facingMode: "environment" },
+            { fps: MAX_SCAN_FPS, qrbox: 250 },
+            (decodedText) => { handleScan(decodedText); },
+            () => { /* gagal baca per frame: normal saat belum fokus, diabaikan */ }
+        );
+        state.scannerState = "running";
     } catch (err) {
         console.error("Kamera gagal dibuka:", err);
-        const msg = err && err.name === "NotAllowedError"
-            ? "Izin kamera ditolak. Aktifkan izin kamera untuk aplikasi ini di pengaturan HP, lalu tekan Coba Lagi."
-            : err && err.name === "NotFoundError"
-            ? "Kamera tidak ditemukan di perangkat ini."
-            : `Kamera tidak bisa dibuka: ${err && err.message ? err.message : "kesalahan tidak dikenal"}`;
-        showBlock("Kamera tidak bisa dibuka", msg, "Coba Lagi", startCamera);
+        state.scanner = null;
+        state.scannerState = "idle";
+        showBlock("Kamera tidak bisa dibuka", cameraErrorText(err), "Coba Lagi", startCamera);
     }
 }
 
-function stopCamera() {
-    state.cameraOn = false;
-    if (state.raf) cancelAnimationFrame(state.raf);
-    state.raf = null;
-    if (state.stream) state.stream.getTracks().forEach(t => t.stop());
-    state.stream = null;
-    $("cam").srcObject = null;
-}
-
-function tick(ts) {
-    if (!state.cameraOn) return;
-    state.raf = requestAnimationFrame(tick);
-    if (state.busy || state.sheetOpen || state.decoding) return;
-    if (ts - state.lastFrameAt < 1000 / MAX_SCAN_FPS) return;
-    state.lastFrameAt = ts;
-    if ($("cam").readyState < 2) return;
-
-    state.decoding = true;
-    decodeFrame()
-        .then(text => { if (text) handleScan(text); })
-        .catch(err => console.warn("Gagal membaca frame:", err))
-        .finally(() => { state.decoding = false; });
-}
-
-async function decodeFrame() {
-    const video = $("cam");
-    if (state.detector) {
-        const codes = await state.detector.detect(video);
-        return codes.length ? codes[0].rawValue : null;
+async function stopCamera() {
+    if (state.scannerState !== "running" || !state.scanner) return;
+    state.scannerState = "stopping";
+    try {
+        await state.scanner.stop();
+        state.scanner.clear();
+    } catch (err) {
+        console.warn("Kamera sudah berhenti:", err);
     }
-    if (typeof jsQR === "undefined") return null;
-    const vw = video.videoWidth, vh = video.videoHeight;
-    if (!vw || !vh) return null;
-    const scale = Math.min(1, 640 / Math.max(vw, vh));
-    const w = Math.round(vw * scale), h = Math.round(vh * scale);
-    const canvas = $("frameCanvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(video, 0, 0, w, h);
-    const img = ctx.getImageData(0, 0, w, h);
-    const code = jsQR(img.data, w, h, { inversionAttempts: "dontInvert" });
-    return code ? code.data : null;
+    state.scanner = null;
+    state.scannerState = "idle";
 }
 
 // ===================================================
@@ -431,7 +451,7 @@ async function decodeFrame() {
 // titik_map (lokasi), petugas (username sesi), created_at (waktu scan di HP).
 // ===================================================
 async function handleScan(rawText) {
-    if (state.busy) return;
+    if (state.busy || state.sheetOpen) return;
     const text = String(rawText || "").trim();
     const now = Date.now();
     if (state.lastIgnored.text === text && now - state.lastIgnored.at < SAME_MSG_SUPPRESS_MS) return;
@@ -642,13 +662,17 @@ async function syncQueue() {
 // pemicu kirim otomatis (kembali online, aplikasi dibuka lagi, tiap 30 detik).
 // ===================================================
 document.addEventListener("DOMContentLoaded", async () => {
+    setHint();                                         // mengganti tulisan "Memuat..." (tanda skrip berjalan)
+    $("appVersion").textContent = `Versi skrip: ${APP_VERSION}`;
+    console.info("[Patroli] versi skrip:", APP_VERSION);
+
     state.session = readSession();
     if (!state.session) {
-        showBlock("Sesi tidak ditemukan", "Silakan login terlebih dahulu.", "Ke Halaman Login",
+        showBlock("Sesi tidak ditemukan", `Silakan login terlebih dahulu.\n\n${sessionProblem}`, "Ke Halaman Login",
             () => { window.location.href = LOGIN_URL; });
         return;
     }
-    $("userLabel").textContent = state.session.username;
+    $("userLabel").textContent = state.session.fullName || state.session.username;
 
     loadLocalData();
     updateStatusUi();
@@ -677,8 +701,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (navigator.onLine) refreshTitikCache(false);
     }, AUTO_SYNC_MS);
 
-    await initDetector();
     startLocationWatch();
-    startCamera();
+    startCamera();                                     // tidak ditunggu, agar bagian lain tetap berjalan
     refreshTitikCache(false).then(() => syncQueue());
 });

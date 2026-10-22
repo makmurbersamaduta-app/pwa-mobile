@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#2b6cb0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Laporan Patroli - DMB Security</title>
+
+    <!-- ============================================================
+         KELOMPOK 1: STYLE
+         Fungsi: seluruh gaya halaman, ditulis di sini tanpa library eksternal
+         (ikon memakai SVG sendiri) supaya tetap tampil saat jaringan lemah.
+         Prefix "lr-" = laporan (report).
+         ============================================================ -->
+    <style>
+        :root {
+            --lr-primary: #2b6cb0;
+            --lr-primary-dark: #1e4e8c;
+            --lr-bg: #f4f7fb;
+            --lr-soft: #e1ecf5;
+            --lr-border: #d3dfea;
+            --lr-text: #1f2d3d;
+            --lr-muted: #6b7c93;
+            --lr-danger: #d64545;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body {
+            margin: 0; min-height: 100%; background: var(--lr-bg); color: var(--lr-text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        /* --- Header tetap di atas: tombol kembali, judul, tombol segarkan --- */
+        .lr-header {
+            position: sticky; top: 0; z-index: 10; background: var(--lr-primary); color: #fff;
+            display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 8px;
+            padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 10px;
+        }
+        .lr-icon-btn {
+            width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255, 255, 255, 0.16);
+            color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; text-decoration: none;
+        }
+        .lr-icon-btn:active { background: rgba(255, 255, 255, 0.3); }
+        .lr-icon-btn:disabled { opacity: 0.5; }
+        .lr-icon-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+        .lr-title-block { text-align: center; min-width: 0; }
+        .lr-title { margin: 0; font-size: 17px; font-weight: 700; }
+        .lr-subtitle { margin-top: 2px; font-size: 12.5px; opacity: 0.9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .lr-main { padding: 12px 12px calc(env(safe-area-inset-bottom, 0px) + 24px); max-width: 640px; margin: 0 auto; }
+
+        /* --- Card data patroli --- */
+        .lr-card {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            background: #fff; border: 1px solid var(--lr-border); border-radius: 14px;
+            padding: 12px 14px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(31, 45, 61, 0.05);
+        }
+        .lr-card-main { min-width: 0; flex: 1; }
+        .lr-card-title { font-size: 15px; font-weight: 700; line-height: 1.3; word-break: break-word; }
+        .lr-card-time { margin-top: 4px; font-size: 13px; color: var(--lr-muted); }
+        .lr-card-side {
+            flex-shrink: 0; max-width: 42%; padding: 8px 10px; border-radius: 10px;
+            background: var(--lr-soft); color: var(--lr-primary-dark); font-size: 12.5px; font-weight: 600;
+            text-align: center; line-height: 1.3; word-break: break-word;
+        }
+
+        /* --- Kelompok per area (bisa dikecilkan / dikembangkan) --- */
+        .lr-group { margin-bottom: 12px; }
+        .lr-group > summary {
+            list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            background: var(--lr-soft); color: var(--lr-primary-dark); border-radius: 12px; padding: 11px 14px;
+            font-size: 14.5px; font-weight: 700; margin-bottom: 8px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 62px); z-index: 5;
+        }
+        .lr-group > summary::-webkit-details-marker { display: none; }
+        .lr-group-right { display: inline-flex; align-items: center; gap: 10px; }
+        .lr-group-count { background: #fff; border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+        .lr-group > summary::after {
+            content: ""; width: 9px; height: 9px; border-right: 2.5px solid currentColor; border-bottom: 2.5px solid currentColor;
+            transform: rotate(45deg); margin-left: 4px; transition: transform 0.15s ease; margin-top: -3px;
+        }
+        .lr-group[open] > summary::after { transform: rotate(-135deg); margin-top: 3px; }
+
+        /* --- Keadaan: memuat, kosong, gagal --- */
+        .lr-state { text-align: center; color: var(--lr-muted); font-size: 14px; line-height: 1.55; padding: 36px 16px; white-space: pre-line; }
+        .lr-state.error { color: var(--lr-danger); }
+        .lr-btn {
+            display: block; margin: 12px auto 0; padding: 11px 22px; border-radius: 12px; border: 1px solid var(--lr-primary);
+            background: var(--lr-primary); color: #fff; font-size: 14.5px; font-weight: 600; font-family: inherit; cursor: pointer;
+        }
+        .lr-btn.plain { background: #fff; color: var(--lr-primary-dark); }
+        .lr-btn:disabled { opacity: 0.6; }
+        .lr-footer { text-align: center; color: var(--lr-muted); font-size: 12.5px; padding-top: 4px; }
+
+        /* --- Pesan kesalahan kecil (muncul jika ada error skrip; ketuk untuk menutup) --- */
+        .lr-errbar {
+            position: fixed; left: 10px; right: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); z-index: 30;
+            background: rgba(220, 38, 38, 0.94); color: #fff; font-size: 12.5px; line-height: 1.4;
+            padding: 8px 12px; border-radius: 10px; word-break: break-word;
+        }
+        .lr-errbar[hidden] { display: none; }
+        .lr-version { text-align: center; font-size: 11px; color: #94a3b8; margin-top: 14px; }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================
+         KELOMPOK 2: HEADER
+         Fungsi: tombol panah kembali (ke laporan.html), judul, keterangan
+         cakupan data (diisi pwa_laporan_patroli.js sesuai jabatan), dan tombol
+         segarkan.
+         PERLU DICEK: laporan.html saya asumsikan satu folder dengan halaman ini.
+         ============================================================ -->
+    <header class="lr-header">
+        <a href="../laporan.html" class="lr-icon-btn" aria-label="Kembali">
+            <svg viewBox="0 0 24 24"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>
+        </a>
+        <div class="lr-title-block">
+            <h1 class="lr-title">Laporan Patroli</h1>
+            <div class="lr-subtitle" id="subtitle">Memuat...</div>
+        </div>
+        <button type="button" class="lr-icon-btn" id="btnRefresh" aria-label="Segarkan">
+            <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 3v6h-6"></path></svg>
+        </button>
+    </header>
+
+    <!-- ============================================================
+         KELOMPOK 3: DAFTAR DATA
+         Fungsi: tempat card data patroli. Isinya dibuat oleh pwa_laporan_patroli.js.
+         Tulisan awal "Memuat..." diganti begitu skrip berjalan; jika tidak
+         berubah, berarti pwa_laporan_patroli.js tidak termuat (periksa path script).
+         ============================================================ -->
+    <main class="lr-main">
+        <div id="list"><div class="lr-state">Memuat... (jika tulisan ini tidak berubah, file pwa_laporan_patroli.js tidak termuat)</div></div>
+        <div id="footer" class="lr-footer"></div>
+        <div class="lr-version" id="appVersion"></div>
+    </main>
+
+    <div class="lr-errbar" id="errBar" hidden></div>
+
+    <!-- ============================================================
+         KELOMPOK 4: SCRIPT
+         Fungsi: Supabase (database), lalu skrip halaman.
+         PERLU DICEK: path supabase.js dan pwa_laporan_patroli.js, samakan dengan
+         struktur folder PWA Anda (sama seperti di patroli.html). Nama file skrip
+         harus SAMA PERSIS (garis bawah, bukan tanda hubung).
+         ============================================================ -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../../js/supabase.js"></script>
+    <script src="../../js/report/rekap-patroli.js"></script>
+</body>
+</html>

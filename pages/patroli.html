@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#000000">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Patroli - DMB Security</title>
 
@@ -28,24 +29,25 @@
             overflow: hidden; overscroll-behavior: none;
         }
 
-        /* --- Kamera layar penuh --- */
-        #cam { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
-
-        /* --- Bingkai bidik: area gelap di luar bingkai dibuat dengan bayangan --- */
-        .pt-frame {
-            position: fixed; left: 50%; top: 46%; width: min(70vw, 320px); aspect-ratio: 1;
-            transform: translate(-50%, -50%); border-radius: 18px;
-            box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5); pointer-events: none;
+        /* --- Pembaca QR (library html5-qrcode membuat video & kotak bidik di dalam elemen ini) --- */
+        #qr-reader {
+            position: fixed; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 60px);
+            width: 100%; max-width: 560px; margin: 0 auto; background: #000; border: none !important;
         }
-        .pt-frame i { position: absolute; width: 30px; height: 30px; border: 4px solid #fff; }
-        .pt-frame i:nth-child(1) { top: -2px; left: -2px; border-right: none; border-bottom: none; border-top-left-radius: 18px; }
-        .pt-frame i:nth-child(2) { top: -2px; right: -2px; border-left: none; border-bottom: none; border-top-right-radius: 18px; }
-        .pt-frame i:nth-child(3) { bottom: -2px; left: -2px; border-right: none; border-top: none; border-bottom-left-radius: 18px; }
-        .pt-frame i:nth-child(4) { bottom: -2px; right: -2px; border-left: none; border-top: none; border-bottom-right-radius: 18px; }
+        #qr-reader video { width: 100% !important; display: block; }
         .pt-hint {
-            position: fixed; left: 0; right: 0; top: calc(46% + min(35vw, 160px) + 24px);
+            position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 120px);
             text-align: center; font-size: 14px; padding: 0 24px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
         }
+
+        /* --- Pesan kesalahan kecil (muncul jika ada error skrip; ketuk untuk menutup) --- */
+        .pt-errbar {
+            position: fixed; left: 10px; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 56px); z-index: 25;
+            background: rgba(220, 38, 38, 0.92); color: #fff; font-size: 12.5px; line-height: 1.4;
+            padding: 8px 12px; border-radius: 10px; word-break: break-word;
+        }
+        .pt-errbar[hidden] { display: none; }
+        .pt-version { margin-top: 8px; text-align: center; font-size: 11.5px; color: #94a3b8; }
 
         /* --- Bar atas: nama petugas + status jaringan/antrean --- */
         .pt-top {
@@ -93,7 +95,7 @@
         }
         .pt-block[hidden] { display: none; }
         .pt-block h1 { margin: 0; font-size: 20px; }
-        .pt-block p { margin: 0; font-size: 14.5px; line-height: 1.55; opacity: 0.85; max-width: 420px; }
+        .pt-block p { margin: 0; font-size: 14.5px; line-height: 1.55; opacity: 0.85; max-width: 420px; white-space: pre-line; }
         .pt-btn {
             margin-top: 8px; padding: 12px 22px; border-radius: 12px; border: none; background: var(--pt-info);
             color: #fff; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
@@ -129,14 +131,13 @@
 
     <!-- ============================================================
          KELOMPOK 2: KAMERA
-         Fungsi: tampilan kamera belakang layar penuh (diatur patroli.js).
-         "canvas" hanya dipakai sebagai area kerja pembaca QR dan tidak ditampilkan.
+         Fungsi: tempat tampilan kamera belakang. Isinya dibuat oleh library
+         html5-qrcode (sama dengan menu Barang OUT wrapping), diatur patroli.js.
+         Tulisan di bawah kamera awalnya "Memuat...": jika tulisan itu TIDAK
+         berubah, berarti patroli.js tidak termuat (periksa path script).
          ============================================================ -->
-    <video id="cam" playsinline muted autoplay></video>
-    <canvas id="frameCanvas" hidden></canvas>
-
-    <div class="pt-frame"><i></i><i></i><i></i><i></i></div>
-    <div class="pt-hint" id="hint">Arahkan kamera ke QR Code titik patroli</div>
+    <div id="qr-reader"></div>
+    <div class="pt-hint" id="hint">Memuat... (jika tulisan ini tidak berubah, file patroli.js tidak termuat)</div>
 
     <!-- ============================================================
          KELOMPOK 3: BAR ATAS
@@ -152,6 +153,8 @@
             <span class="pt-badge" id="pendingBadge" hidden>0</span>
         </button>
     </header>
+
+    <div class="pt-errbar" id="errBar" hidden></div>
 
     <!-- ============================================================
          KELOMPOK 4: NOTIFIKASI
@@ -192,25 +195,29 @@
             <div class="pt-sheet-list" id="sheetList"></div>
             <div class="pt-sheet-foot">
                 <button type="button" class="pt-btn" id="btnSyncNow">Kirim Sekarang</button>
+                <div class="pt-version" id="appVersion"></div>
             </div>
         </div>
     </div>
 
     <!-- ============================================================
          KELOMPOK 7: SCRIPT
-         Fungsi: jsQR (pembaca QR cadangan untuk browser tanpa BarcodeDetector,
-         misalnya iPhone), Supabase (database), lalu skrip halaman.
+         Fungsi: html5-qrcode (pembaca QR), Supabase (database), lalu skrip halaman.
+         PENTING: untuk html5-qrcode, SALIN tag <script> persis dari halaman wrapping
+         Anda yang sudah berjalan (versi dan alamat yang sama), lalu tempel
+         menggantikan baris html5-qrcode di bawah. Dengan begitu library yang
+         dipakai terbukti jalan di HP Anda dan sudah ikut tersimpan di cache PWA.
          PERLU DICEK:
          1. Path supabase.js dan patroli.js, samakan dengan struktur folder PWA Anda.
          2. Agar halaman ini bisa DIBUKA saat offline, file ini, patroli.js,
-            supabase.js, dan kedua library CDN di bawah harus ikut disimpan oleh
+            supabase.js, dan library CDN di bawah harus ikut disimpan oleh
             service worker PWA Anda (atau library disalin ke folder proyek).
             Tanpa itu, scan offline hanya jalan jika halaman sudah terbuka
             sebelum sinyal hilang.
          ============================================================ -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/supabase.js"></script>
-    <script src="js/patroli.js"></script>
+    <script src="../js/supabase.js"></script>
+    <script src="../js/patroli.js"></script>
 </body>
 </html>
