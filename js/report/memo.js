@@ -1,7 +1,7 @@
 // File: js/report/memo.js
 // Hub Persetujuan Memo: list memo status=pending, modal detail+approval.
 
-const ROLES_LIHAT_SEMUA = [1, 2, 4]; // Maintenance, Superadmin, Supervisor
+const ROLES_LIHAT_SEMUA = [1, 2, 12]; // Maintenance, Superadmin, Supervisor
 const ROLE_KARU_STG = 8;
 
 let currentActiveUser = null;

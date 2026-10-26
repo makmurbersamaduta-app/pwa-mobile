@@ -30,7 +30,7 @@ const PAGE_SIZE = 30;                    // jumlah kartu per pemuatan
 const MAX_ROWS = 50;                     // batas jumlah barang per permintaan
 const SUGGEST_LIMIT = 15;                // jumlah saran Kode Barang
 const FILTER_PEMOHON_SENDIRI = true;     // true = hanya permintaan milik user ini; false = semua permintaan di cabang+departemen+area yang sama
-const EDITABLE_STATUS = ["Diajukan", "Disetujui"];   // status yang boleh diedit (selama belum ada pengiriman)
+const EDITABLE_STATUS = ["Diajukan", "Disetujui", "Koreksi"];   // status yang boleh diedit (selama belum ada pengiriman)
 
 // Barang yang bernilai false di kolom cabangnya disembunyikan dari pencarian
 const BATASI_BARANG_PER_CABANG = true;
@@ -511,7 +511,7 @@ async function enterEdit() {
     R.rows = R.origRows.map(r => ({ ...r, item: { ...r.item } }));
     ensureTrailingEmptyRow(true);
     renderRows();
-    $("rqHint").textContent = "Jika disimpan dengan perubahan, status kembali menjadi \"Diajukan\".";
+    $("rqHint").textContent = "Jika disimpan dengan perubahan, permintaan diproses ulang untuk persetujuan.";
     showMsg("", "");
 }
 
@@ -792,7 +792,9 @@ async function saveAdd() {
         const { data, error } = await ga().rpc("simpan_request", { p: payload });
         if (error) throw error;
         closeModal();
-        showToast(`Permintaan tersimpan: ${data?.kode_batch || ""}`);
+        showToast(data?.status === "Disetujui"
+            ? `Permintaan tersimpan dan otomatis disetujui: ${data?.kode_batch || ""}`
+            : `Permintaan tersimpan, menunggu persetujuan: ${data?.kode_batch || ""}`);
         loadList(true);
     } catch (err) {
         console.error("Gagal menyimpan permintaan:", err);
@@ -835,11 +837,12 @@ async function saveEdit() {
     try {
         const { data, error } = await ga().rpc("ubah_request", { p: payload });
         if (error) throw error;
-        const wasApproved = R.card.status === "Disetujui";
         closeModal();
         showToast(data?.changed === false
             ? "Tidak ada perubahan."
-            : (wasApproved ? "Perubahan tersimpan. Status kembali menjadi Diajukan." : "Perubahan tersimpan."));
+            : (data?.status === "Disetujui"
+                ? "Perubahan tersimpan. Status: Disetujui otomatis."
+                : "Perubahan tersimpan. Status: Diajukan, menunggu persetujuan."));
         loadList(true);
     } catch (err) {
         console.error("Gagal menyimpan perubahan:", err);

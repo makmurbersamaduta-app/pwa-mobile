@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="../css/style.css">
 
   <style>
+    /* ===== KELOMPOK 1: HEADER DAN TAB (tidak berubah) ===== */
     .page-header {
       display: flex;
       align-items: center;
@@ -70,6 +71,181 @@
       margin-bottom: 12px;
       color: var(--border-color);
     }
+
+    /* ===== KELOMPOK 2: TAB PERSETUJUAN - BARIS JENIS PENGAJUAN ===== */
+    .ap-wrap { padding: 12px; }
+    .ap-msg {
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      border: 1px solid #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+    .ap-group {
+      background: var(--card-bg, #fff);
+      border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .ap-group-head {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      background: transparent;
+      border: 0;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      color: var(--dark-color, #111827);
+    }
+    .ap-group-icon {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      background: #eff6ff;
+      color: #0d6efd;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.95rem;
+      flex: none;
+    }
+    .ap-group-title { flex: 1; font-size: 0.9rem; font-weight: 700; }
+    .ap-count {
+      background: #dc2626; color: #fff;
+      font-size: 0.7rem; font-weight: 700;
+      min-width: 20px; padding: 2px 7px;
+      border-radius: 10px; text-align: center;
+    }
+    .ap-soon {
+      font-size: 0.68rem; font-weight: 600;
+      color: var(--text-muted, #6b7280);
+      background: #f3f4f6;
+      padding: 2px 8px; border-radius: 10px;
+    }
+    .ap-chevron { color: var(--text-muted, #6b7280); font-size: 0.8rem; transition: transform .15s; }
+    .ap-group.open .ap-chevron { transform: rotate(90deg); }
+    .ap-group.is-soon .ap-group-head { cursor: default; opacity: .65; }
+    .ap-group.is-soon .ap-group-icon { background: #f3f4f6; color: #6b7280; }
+
+    .ap-list { border-top: 1px solid var(--border-color, #e5e7eb); }
+    .ap-item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      background: transparent;
+      border: 0;
+      border-bottom: 1px solid var(--border-color, #e5e7eb);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      color: var(--dark-color, #111827);
+    }
+    .ap-item:last-child { border-bottom: 0; }
+    .ap-item:active { background: #f9fafb; }
+    .ap-item-main { flex: 1; min-width: 0; }
+    .ap-item-title { font-size: 0.85rem; font-weight: 700; }
+    .ap-item-sub {
+      font-size: 0.74rem; color: var(--text-muted, #6b7280); margin-top: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ap-empty, .ap-loading {
+      padding: 18px 14px; text-align: center;
+      font-size: 0.8rem; color: var(--text-muted, #6b7280);
+    }
+
+    /* ===== KELOMPOK 3: MODAL DETAIL PENGAJUAN ===== */
+    .ap-modal[hidden] { display: none; }
+    .ap-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
+    .ap-modal-backdrop { position: absolute; inset: 0; background: rgba(17, 24, 39, .5); }
+    .ap-modal-card {
+      position: relative;
+      width: 100%; max-width: 560px; max-height: 92vh;
+      display: flex; flex-direction: column;
+      background: var(--card-bg, #fff);
+      border-radius: 14px 14px 0 0;
+      box-shadow: 0 -8px 30px rgba(0, 0, 0, .15);
+    }
+    @media (min-width: 600px) {
+      .ap-modal { align-items: center; }
+      .ap-modal-card { border-radius: 14px; }
+    }
+    .ap-modal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-color, #e5e7eb);
+    }
+    .ap-modal-head h2 { font-size: 0.95rem; font-weight: 700; margin: 0; color: var(--dark-color, #111827); }
+    .ap-close { background: transparent; border: 0; font-size: 1.1rem; color: var(--text-muted, #6b7280); cursor: pointer; padding: 4px 8px; }
+    .ap-modal-body { padding: 14px 16px; overflow-y: auto; }
+
+    .ap-info { margin: 0 0 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+    .ap-info div { min-width: 0; }
+    .ap-info dt { font-size: 0.68rem; font-weight: 600; color: var(--text-muted, #6b7280); text-transform: uppercase; letter-spacing: .03em; }
+    .ap-info dd { margin: 2px 0 0; font-size: 0.85rem; font-weight: 600; color: var(--dark-color, #111827); word-break: break-word; }
+
+    .ap-table-wrap { overflow-x: auto; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; }
+    .ap-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; min-width: 420px; }
+    .ap-table th {
+      background: #f9fafb; text-align: left; padding: 8px 10px;
+      font-size: 0.7rem; font-weight: 700; color: var(--text-muted, #6b7280);
+      border-bottom: 1px solid var(--border-color, #e5e7eb); white-space: nowrap;
+    }
+    .ap-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-color, #e5e7eb); vertical-align: middle; }
+    .ap-table tr:last-child td { border-bottom: 0; }
+    .ap-table .num { text-align: right; white-space: nowrap; }
+    .ap-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border-color, #e5e7eb); display: block; }
+    .ap-dash { color: var(--text-muted, #6b7280); }
+
+    .ap-note-wrap { margin-top: 14px; }
+    .ap-note-wrap label { display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 6px; color: var(--dark-color, #111827); }
+    .ap-note-wrap textarea {
+      width: 100%; box-sizing: border-box; resize: vertical;
+      padding: 10px; font: inherit; font-size: 0.82rem;
+      border: 1px solid var(--border-color, #d1d5db); border-radius: 8px;
+    }
+    .ap-confirm-text { margin-top: 14px; font-size: 0.82rem; font-weight: 600; color: var(--dark-color, #111827); }
+    .ap-modal-msg {
+      margin-top: 12px; padding: 9px 11px; border-radius: 8px;
+      font-size: 0.78rem; line-height: 1.4;
+      background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
+    }
+    .ap-modal-msg.info { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+
+    .ap-modal-foot {
+      display: flex; gap: 8px;
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+      border-top: 1px solid var(--border-color, #e5e7eb);
+    }
+    .ap-modal-foot[hidden] { display: none; }
+    .ap-btn {
+      flex: 1; padding: 11px 8px;
+      font: inherit; font-size: 0.82rem; font-weight: 700;
+      border-radius: 8px; cursor: pointer; border: 1px solid transparent;
+    }
+    .ap-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .ap-btn-approve { background: #16a34a; color: #fff; }
+    .ap-btn-correct { background: #fff; color: #b45309; border-color: #f59e0b; }
+    .ap-btn-reject  { background: #fff; color: #b91c1c; border-color: #ef4444; }
+    .ap-btn-cancel  { background: #fff; color: var(--dark-color, #374151); border-color: var(--border-color, #d1d5db); }
+    .ap-btn-confirm { background: #0d6efd; color: #fff; }
+    .ap-btn-confirm.is-approve { background: #16a34a; }
+    .ap-btn-confirm.is-correct { background: #d97706; }
+    .ap-btn-confirm.is-reject  { background: #dc2626; }
+
+    .ap-toast {
+      position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+      z-index: 1100; max-width: 90%;
+      background: #111827; color: #fff;
+      padding: 10px 16px; border-radius: 8px;
+      font-size: 0.8rem; text-align: center;
+    }
+    .ap-toast[hidden] { display: none; }
   </style>
 </head>
 <body>
@@ -96,13 +272,118 @@
       </div>
     </div>
 
+    <!-- KELOMPOK 4: TAB PERSETUJUAN
+         Satu baris per jenis pengajuan. Baris "Permintaan Barang" berisi daftar
+         pengajuan yang menunggu Anda; baris lain belum aktif (menyusul). -->
     <div class="tab-content" id="tabPersetujuan">
-      <div class="empty-state">
-        <i class="fa-regular fa-circle-check"></i>
-        Belum ada pengajuan yang perlu disetujui.
+      <div class="ap-wrap">
+        <div class="ap-msg" id="apMsg" hidden></div>
+
+        <div class="ap-group" data-type="permintaan_barang">
+          <button class="ap-group-head" type="button">
+            <span class="ap-group-icon"><i class="fa-solid fa-box-open"></i></span>
+            <span class="ap-group-title">Permintaan Barang</span>
+            <span class="ap-count" hidden>0</span>
+            <i class="fa-solid fa-chevron-right ap-chevron"></i>
+          </button>
+          <div class="ap-list" hidden></div>
+        </div>
+
+        <div class="ap-group is-soon" data-type="overtime">
+          <button class="ap-group-head" type="button">
+            <span class="ap-group-icon"><i class="fa-regular fa-clock"></i></span>
+            <span class="ap-group-title">Overtime</span>
+            <span class="ap-soon">Segera</span>
+          </button>
+        </div>
+
+        <div class="ap-group is-soon" data-type="time_off">
+          <button class="ap-group-head" type="button">
+            <span class="ap-group-icon"><i class="fa-regular fa-calendar-minus"></i></span>
+            <span class="ap-group-title">Time Off</span>
+            <span class="ap-soon">Segera</span>
+          </button>
+        </div>
+
+        <div class="ap-group is-soon" data-type="change_shift">
+          <button class="ap-group-head" type="button">
+            <span class="ap-group-icon"><i class="fa-solid fa-right-left"></i></span>
+            <span class="ap-group-title">Change Shift</span>
+            <span class="ap-soon">Segera</span>
+          </button>
+        </div>
+
+        <div class="ap-group is-soon" data-type="attendance">
+          <button class="ap-group-head" type="button">
+            <span class="ap-group-icon"><i class="fa-solid fa-fingerprint"></i></span>
+            <span class="ap-group-title">Attendance</span>
+            <span class="ap-soon">Segera</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- KELOMPOK 5: MODAL DETAIL PENGAJUAN (dipakai bersama semua jenis) -->
+  <div class="ap-modal" id="apModal" hidden>
+    <div class="ap-modal-backdrop" data-close></div>
+    <div class="ap-modal-card" role="dialog" aria-modal="true" aria-labelledby="apModalTitle">
+      <div class="ap-modal-head">
+        <h2 id="apModalTitle">Permintaan Barang</h2>
+        <button class="ap-close" type="button" data-close aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="ap-modal-body">
+        <div class="ap-loading" id="apModalLoading">Memuat data...</div>
+
+        <div id="apModalContent" hidden>
+          <dl class="ap-info">
+            <div><dt>Kode Batch</dt><dd id="apKode">-</dd></div>
+            <div><dt>Tanggal</dt><dd id="apTanggal">-</dd></div>
+            <div><dt>Periode Permintaan</dt><dd id="apPeriode">-</dd></div>
+            <div><dt>Pemohon</dt><dd id="apPemohon">-</dd></div>
+          </dl>
+
+          <div class="ap-table-wrap">
+            <table class="ap-table">
+              <thead>
+                <tr>
+                  <th>Kode Barang</th>
+                  <th>Nama Barang</th>
+                  <th class="num">Qty</th>
+                  <th>Satuan</th>
+                  <th>Foto Barang</th>
+                </tr>
+              </thead>
+              <tbody id="apItems"></tbody>
+            </table>
+          </div>
+
+          <div class="ap-confirm-text" id="apConfirmText" hidden></div>
+          <div class="ap-note-wrap" id="apNoteWrap" hidden>
+            <label for="apNote">Alasan <span style="color:#dc2626">*</span></label>
+            <textarea id="apNote" rows="3" maxlength="500" placeholder="Tuliskan alasan untuk pemohon..."></textarea>
+          </div>
+        </div>
+
+        <div class="ap-modal-msg" id="apModalMsg" hidden></div>
+      </div>
+
+      <!-- Tombol keputusan -->
+      <div class="ap-modal-foot" id="apFootMain" hidden>
+        <button class="ap-btn ap-btn-reject" type="button" data-action="Ditolak">Tolak</button>
+        <button class="ap-btn ap-btn-correct" type="button" data-action="Koreksi">Koreksi</button>
+        <button class="ap-btn ap-btn-approve" type="button" data-action="Disetujui">Disetujui</button>
+      </div>
+      <!-- Konfirmasi keputusan -->
+      <div class="ap-modal-foot" id="apFootConfirm" hidden>
+        <button class="ap-btn ap-btn-cancel" type="button" id="apBtnBack">Kembali</button>
+        <button class="ap-btn ap-btn-confirm" type="button" id="apBtnConfirm">Kirim</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-toast" id="apToast" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase.js"></script>
