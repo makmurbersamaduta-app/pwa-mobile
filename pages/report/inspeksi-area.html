@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Inspeksi</title>
+
+    <!-- ============================================================
+         KELOMPOK 1: HEAD PWA & STYLE
+         PERLU DISAMAKAN: salin tag <meta> / <link> PWA (theme-color, manifest, ikon)
+         dari <head> halaman PWA Anda yang sudah berjalan. Path CSS di bawah
+         disalin dari permintaan-barang.html.
+         Kelas proyek (app-container, page-header, back-btn, memo-list) tetap dipakai
+         agar header sama dengan halaman lain. Semua gaya baru memakai awalan "ins-".
+         ============================================================ -->
+    <link rel="stylesheet" href="../../css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --ins-primary: #2b6cb0;
+            --ins-primary-dark: #1e4e8c;
+            --ins-soft: #e1ecf5;
+            --ins-border: #d3dfea;
+            --ins-text: #1f2d3d;
+            --ins-muted: #6b7c93;
+            --ins-danger: #d64545;
+        }
+
+        /* Header: tombol "Buat Inspeksi" di kanan */
+        .ins-page .page-header { display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid var(--border-color); background: var(--card-bg); }
+        .ins-page .page-header .back-btn { font-size: 1.1rem; color: var(--dark-color); }
+        .ins-page .page-header h1 { font-size: 1rem; font-weight: 700; color: var(--dark-color); }
+        .ins-btn-new { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; border: none; border-radius: 8px; padding: 8px 12px; cursor: pointer; background: var(--ins-primary); color: #fff; font-size: 13px; font-weight: 600; font-family: inherit; }
+        .ins-btn-new:disabled { opacity: 0.5; }
+
+        /* Daftar kartu */
+        .ins-list { padding: 12px 14px 90px; }
+        .ins-card { background: #fff; border: 1px solid var(--ins-border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(31, 45, 61, 0.06); }
+        .ins-card:active { background: #f4f7fb; }
+        .ins-card-title { font-size: 14.5px; font-weight: 700; color: var(--ins-text); word-break: break-word; }
+        .ins-card-meta { margin-top: 6px; font-size: 12.5px; color: var(--ins-muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .ins-empty, .ins-loading { text-align: center; padding: 40px 16px; color: var(--ins-muted); font-size: 14px; }
+        .ins-more { display: block; width: 100%; margin: 6px 0 0; padding: 10px; border: 1px solid var(--ins-border); border-radius: 10px; background: #fff; color: var(--ins-primary-dark); font-weight: 600; font-family: inherit; }
+
+        /* Modal layar penuh */
+        .ins-modal { position: fixed; inset: 0; z-index: 1000; display: none; flex-direction: column; background: #f4f7fb; }
+        .ins-modal.open { display: flex; }
+        .ins-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px; background: #fff; border-bottom: 1px solid var(--ins-border); }
+        .ins-modal-title { margin: 0; font-size: 16px; font-weight: 700; color: var(--ins-text); }
+        .ins-x { border: none; background: none; font-size: 20px; color: var(--ins-muted); padding: 4px 8px; }
+        .ins-modal-body { flex: 1; overflow-y: auto; padding: 14px; -webkit-overflow-scrolling: touch; }
+        .ins-modal-foot { display: flex; gap: 10px; justify-content: flex-end; flex-shrink: 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid var(--ins-border); }
+        .ins-btn { border: 1px solid var(--ins-border); background: #fff; color: var(--ins-text); border-radius: 8px; padding: 10px 18px; font-size: 14px; font-weight: 600; font-family: inherit; }
+        .ins-btn.primary { background: var(--ins-primary); border-color: var(--ins-primary); color: #fff; }
+        .ins-btn:disabled { opacity: 0.6; }
+        [hidden] { display: none !important; }
+
+        /* Isian form */
+        .ins-field { margin-bottom: 14px; }
+        .ins-label { display: block; font-size: 12px; font-weight: 600; color: var(--ins-muted); margin-bottom: 4px; }
+        .ins-input { width: 100%; border: 1px solid var(--ins-border); border-radius: 8px; padding: 10px; font-size: 14px; background: #fff; color: var(--ins-text); outline: none; font-family: inherit; }
+        .ins-input:focus { border-color: var(--ins-primary); }
+        .ins-input[readonly], .ins-input:disabled { background: #eef2f6; }
+        textarea.ins-input { min-height: 96px; resize: vertical; }
+        .ins-msg { border-radius: 8px; padding: 9px 12px; font-size: 13px; margin-bottom: 12px; white-space: pre-line; }
+        .ins-msg.danger { background: #fdecec; color: #9b1c1c; }
+        .ins-msg.info { background: #e1ecf5; color: #1e4e8c; }
+        .ins-hint { font-size: 12px; color: var(--ins-muted); margin-top: 6px; }
+
+        /* Foto temuan: 5 kotak, tanda "+" di kotak kosong */
+        .ins-photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .ins-slot { position: relative; aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden; background: #fff; }
+        .ins-slot-add { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border: 2px dashed var(--ins-border); border-radius: 10px; background: #fff; color: var(--ins-primary); font-size: 26px; cursor: pointer; }
+        .ins-slot-add:active { background: var(--ins-soft); }
+        .ins-slot img { width: 100%; height: 100%; object-fit: cover; display: block; border: 1px solid var(--ins-border); border-radius: 10px; }
+        .ins-slot-del { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border: none; border-radius: 50%; background: rgba(31, 45, 61, 0.75); color: #fff; font-size: 12px; cursor: pointer; }
+
+        .ins-toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 1200; background: #1f2d3d; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13px; max-width: 90vw; text-align: center; display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================
+         KELOMPOK 2: HEADER & DAFTAR KARTU
+         Fungsi: tombol kembali, judul "Inspeksi", tombol "Buat Inspeksi".
+         Kartu (Temuan, Tanggal, Area) diisi dinamis oleh inspeksi.js.
+         PERLU DICEK: tujuan tombol kembali.
+         ============================================================ -->
+    <div class="app-container ins-page">
+        <header class="page-header">
+            <a href="../laporan.html" class="back-btn"><i class="fa-solid fa-arrow-left"></i></a>
+            <h1>Inspeksi</h1>
+            <button type="button" class="ins-btn-new" id="btnBuat"><i class="fa-solid fa-plus"></i> Buat Inspeksi</button>
+        </header>
+
+        <div class="memo-list ins-list" id="inspeksiList">
+            <!-- Diisi dinamis oleh inspeksi.js -->
+        </div>
+    </div>
+
+    <!-- ============================================================
+         KELOMPOK 3: MODAL (Buat / Detail / Edit)
+         Fungsi: satu modal layar penuh untuk tiga mode (diatur JS):
+           - Buat   : form Area (dipilih petugas), Kategori Temuan, Temuan,
+                      Deskripsi, 5 kotak Foto
+           - Detail : isi temuan yang dipilih, hanya baca; tombol Edit muncul
+                      jika milik petugas dan masih dalam batas H-1
+           - Edit   : isian terbuka dengan nilai lama
+         Data di belakang layar (cabang, departemen, petugas, lokasi GPS)
+         tidak tampil di form; diisi otomatis saat Simpan.
+         ============================================================ -->
+    <div class="ins-modal" id="insModal" role="dialog" aria-modal="true">
+        <div class="ins-modal-head">
+            <h2 class="ins-modal-title" id="insTitle">Buat Inspeksi</h2>
+            <button type="button" class="ins-x" id="insBtnX" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="ins-modal-body" id="insBody">
+            <div class="ins-msg" id="insMsg" hidden></div>
+
+            <div class="ins-field" id="wrapTanggal" hidden>
+                <label class="ins-label" for="insTanggal">Tanggal</label>
+                <input type="text" class="ins-input" id="insTanggal" readonly>
+            </div>
+
+            <div class="ins-field">
+                <label class="ins-label" for="insAreaSel">Area</label>
+                <select class="ins-input" id="insAreaSel"></select>
+                <input type="text" class="ins-input" id="insArea" readonly hidden>
+            </div>
+            <div class="ins-field">
+                <label class="ins-label" for="insKategori">Kategori Temuan</label>
+                <select class="ins-input" id="insKategori"></select>
+                <input type="text" class="ins-input" id="insKategoriTxt" readonly hidden>
+            </div>
+            <div class="ins-field">
+                <label class="ins-label" for="insTemuan">Temuan</label>
+                <select class="ins-input" id="insTemuan"></select>
+                <input type="text" class="ins-input" id="insTemuanTxt" readonly hidden>
+            </div>
+            <div class="ins-field">
+                <label class="ins-label" for="insDeskripsi">Deskripsi Temuan</label>
+                <textarea class="ins-input" id="insDeskripsi" maxlength="1000"></textarea>
+            </div>
+
+            <div class="ins-field" id="wrapLokasi" hidden>
+                <label class="ins-label" for="insLokasi">Koordinat Lokasi</label>
+                <input type="text" class="ins-input" id="insLokasi" readonly>
+            </div>
+
+            <div class="ins-field">
+                <label class="ins-label">Foto Temuan</label>
+                <div class="ins-photo-grid" id="insPhotoGrid"></div>
+                <div class="ins-hint" id="insPhotoHint"></div>
+            </div>
+            <div class="ins-hint" id="insEditHint"></div>
+        </div>
+
+        <div class="ins-modal-foot">
+            <button type="button" class="ins-btn" id="insBtnTutup" hidden>Tutup</button>
+            <button type="button" class="ins-btn" id="insBtnBatal" hidden>Batal</button>
+            <button type="button" class="ins-btn primary" id="insBtnEdit" hidden><i class="fa-solid fa-pen"></i> Edit</button>
+            <button type="button" class="ins-btn primary" id="insBtnSimpan" hidden><i class="fa-solid fa-floppy-disk"></i> Simpan</button>
+        </div>
+    </div>
+
+    <!-- Pemilih foto (dibuka oleh kotak "+"). Satu input dipakai untuk kelima kotak. -->
+    <input type="file" id="insFile" accept="image/*" hidden>
+    <div class="ins-toast" id="insToast"></div>
+
+    <!-- ============================================================
+         KELOMPOK 4: SCRIPT
+         PERLU DICEK: path supabase.js dan inspeksi.js. Samakan dengan
+         halaman PWA lain yang sudah berjalan.
+         ============================================================ -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../../js/supabase.js"></script>
+    <script src="../../js/report/inspeksi-area.js"></script>
+</body>
+</html>

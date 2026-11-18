@@ -183,6 +183,311 @@
       border: 1px solid var(--border-color);
       border-radius: 12px;
     }
+
+    /* ===================================================
+       ABSENSI: tombol nonaktif + info status di widget
+       =================================================== */
+    .btn-clock:disabled { opacity: 0.45; cursor: not-allowed; }
+    .absen-info {
+      margin-top: 10px;
+      font-size: 0.72rem;
+      opacity: 0.92;
+      text-align: center;
+      min-height: 1em;
+    }
+    .absen-info.clickable { text-decoration: underline; cursor: pointer; }
+
+    /* ===================================================
+       ABSENSI: LAYAR PENUH (kamera selfie + catatan + lokasi + kirim)
+       =================================================== */
+    .absen-layar {
+      position: fixed;
+      top: 0; right: 0; bottom: 0; left: 0;
+      z-index: 2000;
+      display: none;
+      justify-content: center;
+      background: #0f172a;
+    }
+    .absen-layar.show { display: flex; }
+    .absen-layar [hidden] { display: none !important; }
+    .absen-halaman, .absen-peta-layar {
+      width: 100%;
+      max-width: 480px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: #0f172a;
+    }
+    .absen-peta-layar {
+      position: absolute;
+      top: 0; bottom: 0;
+      background: #ffffff;
+      z-index: 5;
+    }
+    .absen-bar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 14px;
+      background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+      color: #ffffff;
+    }
+    .absen-back {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: transparent;
+      color: #ffffff;
+      font-size: 1.15rem;
+      cursor: pointer;
+    }
+    .absen-judul { font-size: 1.05rem; font-weight: 700; }
+    .absen-bar-spasi { width: 36px; }
+
+    /* Kartu info shift (menumpang di pita biru) */
+    .absen-pita {
+      flex-shrink: 0;
+      background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+      padding: 0 14px 14px;
+    }
+    .absen-shift {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 10px 14px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+    .absen-shift-nama { font-size: 0.72rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+    .absen-shift-detail { margin-top: 2px; font-size: 0.92rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+
+    /* Kamera */
+    .absen-kamera {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      background: #1e293b;
+    }
+    #absenVideo {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);   /* pratinjau seperti cermin; foto yang dikirim tidak dibalik */
+    }
+    .absen-siluet {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .absen-kamera-pesan {
+      position: absolute;
+      top: 0; right: 0; bottom: 0; left: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 24px;
+      text-align: center;
+      color: #ffffff;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: rgba(15, 23, 42, 0.8);
+    }
+    .absen-tombol-kecil {
+      border: 1px solid currentColor;
+      background: transparent;
+      color: inherit;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Panel bawah */
+    .absen-sheet {
+      flex-shrink: 0;
+      background: #ffffff;
+      border-radius: 18px 18px 0 0;
+      margin-top: -16px;
+      position: relative;
+      padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    }
+    .absen-handle { width: 44px; height: 4px; border-radius: 4px; background: #cbd5e1; margin: 0 auto 6px; }
+    .absen-baris {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+      padding: 13px 4px;
+      border: none;
+      background: transparent;
+      text-align: left;
+      font: inherit;
+      color: #334155;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    button.absen-baris { cursor: pointer; }
+    .absen-baris > i:first-child { width: 22px; text-align: center; color: #64748b; font-size: 1.05rem; }
+    .absen-baris input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      font: inherit;
+      font-size: 0.9rem;
+      color: #1e293b;
+    }
+    .absen-baris-teks { flex: 1; display: flex; flex-direction: column; min-width: 0; font-size: 0.9rem; }
+    .absen-baris-teks small { font-size: 0.72rem; font-weight: 600; color: #64748b; line-height: 1.3; }
+    .absen-baris-teks small.ok  { color: #15803d; }
+    .absen-baris-teks small.bad { color: #b91c1c; }
+    .absen-peringatan {
+      margin: 8px 0 2px;
+      background: #fef3c7;
+      color: #92400e;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.76rem;
+      font-weight: 600;
+    }
+    .absen-error {
+      margin-top: 10px;
+      background: #fee2e2;
+      color: #991b1b;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.76rem;
+      font-weight: 600;
+    }
+    .absen-kirim {
+      width: 100%;
+      margin-top: 12px;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      background: #0d6efd;
+      color: #ffffff;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .absen-kirim:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Layar peta (muncul hanya bila "Lihat lokasi" ditekan) */
+    .absen-note {
+      flex-shrink: 0;
+      background: #fef3c7;
+      color: #92400e;
+      padding: 9px 14px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .absen-peta-wadah { position: relative; flex: 1 1 auto; min-height: 0; background: #e2e8f0; }
+    #absenMap { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
+    .absen-peta-pesan {
+      position: absolute;
+      top: 0; right: 0; bottom: 0; left: 0;
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 24px;
+      text-align: center;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #475569;
+      background: #e2e8f0;
+    }
+    .absen-peta-info {
+      flex-shrink: 0;
+      padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+      background: #ffffff;
+      border-top: 1px solid #e2e8f0;
+    }
+    .absen-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.7rem; color: #64748b; margin-bottom: 6px; }
+    .absen-status { font-size: 0.78rem; font-weight: 600; color: #475569; min-height: 1.2em; }
+    .absen-status.ok  { color: #15803d; }
+    .absen-status.bad { color: #b91c1c; }
+
+    .pin-saya {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #0d6efd;
+      border: 3px solid #ffffff;
+      box-shadow: 0 0 0 2px #0d6efd, 0 1px 4px rgba(0, 0, 0, 0.4);
+    }
+    .pin-lokasi {
+      font-size: 30px;
+      line-height: 30px;
+      text-align: center;
+      color: #16a34a;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    }
+    .absen-toast {
+      position: fixed;
+      left: 50%;
+      bottom: 90px;
+      transform: translateX(-50%);
+      z-index: 3000;
+      background: #166534;
+      color: #ffffff;
+      padding: 10px 16px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    }
+
+    /* ===================================================
+       KARTU ABSENSI: bisa digeser, satu kartu per tanggal jadwal
+       =================================================== */
+    .absen-wadah { margin: 16px 0 0; }
+    .absen-track {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding: 4px 16px 10px;
+      scroll-padding: 0 16px;
+    }
+    .absen-track::-webkit-scrollbar { display: none; }
+    .absen-kartu {
+      flex: 0 0 100%;
+      box-sizing: border-box;
+      scroll-snap-align: start;
+      margin: 0 !important;
+    }
+    /* Bila ada lebih dari satu kartu, kartu berikutnya sedikit terlihat sebagai petunjuk geser */
+    .absen-track.absen-banyak .absen-kartu { flex-basis: 88%; }
+    .absen-kartu .shift-info { gap: 8px; align-items: flex-start; }
+    .absen-kartu .shift-badge { white-space: nowrap; }
+    .shift-badge.ok    { background: rgba(22, 163, 74, 0.9); }
+    .shift-badge.telat { background: rgba(220, 38, 38, 0.92); }
+    .absen-detail { font-size: 0.8rem; opacity: 0.92; margin-top: 2px; }
+    .absen-lembur {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.18);
+      font-size: 0.68rem;
+      font-weight: 600;
+    }
+    .absen-info-gagal { text-decoration: underline; cursor: pointer; margin-top: 0; padding: 6px 0; }
+    .absen-dots { display: flex; justify-content: center; gap: 6px; margin-top: 2px; }
+    .absen-dot { width: 7px; height: 7px; border-radius: 50%; background: #cbd5e1; transition: all 0.2s; }
+    .absen-dot.aktif { width: 18px; border-radius: 4px; background: #0d6efd; }
   </style>
 </head>
 <body>
@@ -211,23 +516,11 @@
       </div>
     </header>
 
-    <!-- Floating Widget Shift & Absensi Hari Ini -->
-    <section class="shift-widget">
-      <div class="shift-info">
-        <div>
-          <div class="shift-title">Jadwal Shift Hari Ini</div>
-          <div class="shift-time" id="lblShiftInfo">SHREGULAR - 08:00 s/d 16:00</div>
-        </div>
-        <span class="shift-badge" id="lblShiftStatus"><i class="fa-solid fa-circle-check me-1"></i>Tepat Waktu</span>
-      </div>
-      <div class="clock-actions">
-        <button class="btn-clock btn-clock-in" onclick="handleClockIn()">
-          <i class="fa-solid fa-right-to-bracket"></i> Clock In
-        </button>
-        <button class="btn-clock btn-clock-out" onclick="handleClockOut()">
-          <i class="fa-solid fa-right-from-bracket"></i> Clock Out
-        </button>
-      </div>
+    <!-- Kartu Absensi: satu kartu per tanggal jadwal, digeser untuk memilih tanggal.
+         Isi digambar oleh js/absensi.js. Disembunyikan bila tidak ada jadwal yang bisa diabsen. -->
+    <section class="absen-wadah" id="absenKartuWadah" hidden>
+      <div class="absen-track" id="absenTrack"></div>
+      <div class="absen-dots" id="absenDots"></div>
     </section>
 
     <!-- Grid Quick Access Section -->
@@ -270,6 +563,90 @@
 
   </div>
 
+  <!-- ===================================================
+       LAYAR ABSEN: selfie (kamera depan) + catatan + lihat lokasi + kirim
+       Peta TIDAK dimuat sampai "Lihat lokasi" ditekan.
+       =================================================== -->
+  <div class="absen-layar" id="absenModal" aria-hidden="true">
+
+    <div class="absen-halaman" role="dialog" aria-modal="true" aria-labelledby="absenJudul">
+      <header class="absen-bar">
+        <button type="button" class="absen-back" id="btnAbsenTutup" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></button>
+        <div class="absen-judul" id="absenJudul">Clock In</div>
+        <span class="absen-bar-spasi"></span>
+      </header>
+      <div class="absen-pita">
+        <div class="absen-shift">
+          <div class="absen-shift-nama" id="absenShiftNama">Shift</div>
+          <div class="absen-shift-detail"><i class="fa-regular fa-calendar"></i><span id="absenShiftDetail"></span></div>
+        </div>
+      </div>
+
+      <div class="absen-kamera" id="absenKamera">
+        <video id="absenVideo" autoplay playsinline muted></video>
+        <!-- Batas foto: area terang = posisi kepala dan bahu, sisanya digelapkan -->
+        <svg class="absen-siluet" viewBox="0 0 300 400" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+          <defs>
+            <mask id="absenMask">
+              <rect x="-2000" y="-2000" width="4300" height="4400" fill="#ffffff"/>
+              <path d="M150 40 C205 40 225 90 225 140 C225 185 205 225 185 245 L185 262 C185 285 235 290 275 305 C292 312 295 330 295 400 L5 400 C5 330 8 312 25 305 C65 290 115 285 115 262 L115 245 C95 225 75 185 75 140 C75 90 95 40 150 40 Z" fill="#000000"/>
+            </mask>
+          </defs>
+          <rect x="-2000" y="-2000" width="4300" height="4400" fill="rgba(15,23,42,0.6)" mask="url(#absenMask)"/>
+          <path d="M150 40 C205 40 225 90 225 140 C225 185 205 225 185 245 L185 262 C185 285 235 290 275 305 C292 312 295 330 295 400 L5 400 C5 330 8 312 25 305 C65 290 115 285 115 262 L115 245 C95 225 75 185 75 140 C75 90 95 40 150 40 Z" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-dasharray="8 6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="absen-kamera-pesan" id="absenKameraPesan">
+          <div id="absenKameraTeks">Membuka kamera depan...</div>
+          <button type="button" class="absen-tombol-kecil" id="btnAbsenKameraCoba" hidden>Coba lagi</button>
+        </div>
+      </div>
+
+      <div class="absen-sheet">
+        <div class="absen-handle"></div>
+        <div class="absen-peringatan" id="absenPeringatan" hidden>
+          <i class="fa-solid fa-triangle-exclamation"></i> Anda belum Clock In untuk jadwal ini. Setelah Clock Out, absen tanggal ini selesai dan Clock In tidak bisa dilakukan lagi.
+        </div>
+        <button type="button" class="absen-baris" id="btnAbsenLokasi">
+          <i class="fa-solid fa-location-dot"></i>
+          <span class="absen-baris-teks">
+            <span>Lihat lokasi</span>
+            <small id="absenStatus">Mencari lokasi Anda...</small>
+          </span>
+          <i class="fa-solid fa-chevron-right" style="color:#64748b;"></i>
+        </button>
+        <div class="absen-error" id="absenError" hidden>
+          <div id="absenErrorTeks"></div>
+          <button type="button" class="absen-tombol-kecil" id="btnAbsenCoba" hidden style="margin-top:6px;">Coba lagi</button>
+        </div>
+        <button type="button" class="absen-kirim" id="btnAbsenKirim" disabled>Kirim</button>
+      </div>
+    </div>
+
+    <!-- Layar peta: dibuka hanya lewat "Lihat lokasi" -->
+    <div class="absen-peta-layar" id="absenPetaLayar" hidden>
+      <header class="absen-bar">
+        <button type="button" class="absen-back" id="btnPetaTutup" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></button>
+        <div class="absen-judul">Lokasi</div>
+        <span class="absen-bar-spasi"></span>
+      </header>
+      <div class="absen-note" id="absenNote"><i class="fa-solid fa-circle-info"></i> Pastikan anda ada didalam range lokasi absen</div>
+      <div class="absen-peta-wadah">
+        <div id="absenMap"></div>
+        <div class="absen-peta-pesan" id="absenPetaPesan" hidden>
+          <div id="absenPetaTeks">Memuat peta...</div>
+          <button type="button" class="absen-tombol-kecil" id="btnPetaCoba" hidden>Coba lagi</button>
+        </div>
+      </div>
+      <div class="absen-peta-info">
+        <div class="absen-legend" id="absenLegend">
+          <span><i class="fa-solid fa-circle" style="color:#0d6efd;"></i> Posisi Anda</span>
+          <span><i class="fa-solid fa-location-dot" style="color:#16a34a;"></i> Lokasi absen (lingkaran = range)</span>
+        </div>
+        <div class="absen-status" id="absenStatusPeta"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Pendaftaran Service Worker Dasar -->
 <script>
   if ('serviceWorker' in navigator) {
@@ -287,6 +664,7 @@
   <!-- Skrip Auth Guard & Session Checking -->
   <script src="js/auth.js"></script>
   <script src="js/menu-engine.js"></script>
+  <script src="js/absensi.js"></script>
 
   <!-- Skrip Logika Dinamis Dashboard Home -->
   <script>
@@ -333,6 +711,7 @@
       const sessionOk = await ensureValidAuthSession();
       if (!sessionOk) return;
 
+      muatStatusAbsen();   // status tombol Clock In / Clock Out (berjalan paralel dengan menu)
       await renderDynamicNavigation(currentUser);
     });
 
@@ -346,6 +725,7 @@
       if (!sessionOk) return;
 
       // Muat ulang menu hanya kalau sebelumnya gagal dimuat
+      muatStatusAbsen();   // absen bisa berubah dari perangkat lain selagi app di background
       if (!menuLoadedOk) await renderDynamicNavigation(currentUser);
     });
 
@@ -356,7 +736,7 @@
       const bottomNav = document.getElementById("bottomNav");
       const quickAccessGrid = document.getElementById("quickAccessGrid");
 
-      const activeMenus = await fetchAllowedMenus(user);
+      let activeMenus = await fetchAllowedMenus(user);
 
       // Hasil kosong total (bahkan Home tidak ada) = hampir pasti gagal memuat, bukan memang tidak ada menu
       if (activeMenus.length === 0) {
@@ -365,6 +745,14 @@
         return;
       }
       menuLoadedOk = true;
+
+      // Karyawan Reliver: hanya menu HOME (bottom nav dan akses cepat Laporan ikut tersaring).
+      // Status Reliver datang dari status absen; bila gagal dimuat, menu tampil normal.
+      // Pembatasan ini hanya di tampilan; hak akses sebenarnya tetap di role_permissions.
+      await absenTungguStatus();
+      if (absenModeReliver()) {
+        activeMenus = activeMenus.filter(m => m.menu_code === "PWA-HOME-01");
+      }
 
       // Ikon Akun di header: alamat bawaan sudah ada di HTML.
       // Kalau menu "Akun" ketemu di hasil query, pakai alamat dari database.
@@ -441,18 +829,7 @@
       });
     }
 
-    // ===================================================
-    // 3. FUNGSI ACTION CLOCK IN & CLOCK OUT
-    // ===================================================
-    function handleClockIn() {
-      alert("✅ Berhasil Clock In pada pukul " + new Date().toLocaleTimeString('id-ID'));
-    }
-
-    function handleClockOut() {
-      if (confirm("Apakah Anda yakin ingin melakukan Clock Out sekarang?")) {
-        alert("✅ Berhasil Clock Out pada pukul " + new Date().toLocaleTimeString('id-ID'));
-      }
-    }
+    // Logika absensi (kartu per tanggal jadwal, selfie, lokasi, kirim) ada di js/absensi.js
      document.getElementById("btnInbox")?.addEventListener("click", () => {
       window.location.href = "pages/inbox.html";
     });
