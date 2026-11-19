@@ -276,13 +276,6 @@
       object-fit: cover;
       transform: scaleX(-1);   /* pratinjau seperti cermin; foto yang dikirim tidak dibalik */
     }
-    .absen-siluet {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-    }
     .absen-kamera-pesan {
       position: absolute;
       top: 0; right: 0; bottom: 0; left: 0;
@@ -470,8 +463,10 @@
     }
     /* Bila ada lebih dari satu kartu, kartu berikutnya sedikit terlihat sebagai petunjuk geser */
     .absen-track.absen-banyak .absen-kartu { flex-basis: 88%; }
-    .absen-kartu .shift-info { gap: 8px; align-items: flex-start; }
-    .absen-kartu .shift-badge { white-space: nowrap; }
+    /* Keterangan Tepat Waktu/Terlambat di atas tanggal; teks tanggal dan shift memakai lebar penuh */
+    .absen-kartu .shift-info { display: block; }
+    .absen-kartu-badge { margin-bottom: 6px; }
+    .absen-kartu .shift-badge { display: inline-block; white-space: nowrap; }
     .shift-badge.ok    { background: rgba(22, 163, 74, 0.9); }
     .shift-badge.telat { background: rgba(220, 38, 38, 0.92); }
     .absen-detail { font-size: 0.8rem; opacity: 0.92; margin-top: 2px; }
@@ -584,17 +579,6 @@
 
       <div class="absen-kamera" id="absenKamera">
         <video id="absenVideo" autoplay playsinline muted></video>
-        <!-- Batas foto: area terang = posisi kepala dan bahu, sisanya digelapkan -->
-        <svg class="absen-siluet" viewBox="0 0 300 400" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
-          <defs>
-            <mask id="absenMask">
-              <rect x="-2000" y="-2000" width="4300" height="4400" fill="#ffffff"/>
-              <path d="M150 40 C205 40 225 90 225 140 C225 185 205 225 185 245 L185 262 C185 285 235 290 275 305 C292 312 295 330 295 400 L5 400 C5 330 8 312 25 305 C65 290 115 285 115 262 L115 245 C95 225 75 185 75 140 C75 90 95 40 150 40 Z" fill="#000000"/>
-            </mask>
-          </defs>
-          <rect x="-2000" y="-2000" width="4300" height="4400" fill="rgba(15,23,42,0.6)" mask="url(#absenMask)"/>
-          <path d="M150 40 C205 40 225 90 225 140 C225 185 205 225 185 245 L185 262 C185 285 235 290 275 305 C292 312 295 330 295 400 L5 400 C5 330 8 312 25 305 C65 290 115 285 115 262 L115 245 C95 225 75 185 75 140 C75 90 95 40 150 40 Z" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-dasharray="8 6" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
         <div class="absen-kamera-pesan" id="absenKameraPesan">
           <div id="absenKameraTeks">Membuka kamera depan...</div>
           <button type="button" class="absen-tombol-kecil" id="btnAbsenKameraCoba" hidden>Coba lagi</button>

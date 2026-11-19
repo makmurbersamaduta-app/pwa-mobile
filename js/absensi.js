@@ -173,13 +173,11 @@ function absenHtmlKartu(k) {
 
   return `<div class="shift-widget absen-kartu" data-tgl="${absenEsc(k.tanggal_kerja)}">
     <div class="shift-info">
-      <div>
-        <div class="shift-title">${absenEsc(judul)}</div>
-        <div class="shift-time">${absenEsc(absenTglPanjang(k.tanggal_kerja))}</div>
-        <div class="absen-detail">${absenEsc(k.nama_shift)} · ${absenEsc(k.jam_masuk)} - ${absenEsc(pulang)}</div>
-        ${lembur}
-      </div>
-      <span class="shift-badge" data-badge></span>
+      <div class="absen-kartu-badge"><span class="shift-badge" data-badge></span></div>
+      <div class="shift-title">${absenEsc(judul)}</div>
+      <div class="shift-time">${absenEsc(absenTglPanjang(k.tanggal_kerja))}</div>
+      <div class="absen-detail">${absenEsc(k.nama_shift)} · ${absenEsc(k.jam_masuk)} - ${absenEsc(pulang)}</div>
+      ${lembur}
     </div>
     <div class="clock-actions">
       <button type="button" class="btn-clock btn-clock-in" data-aksi="clock_in" ${(!adaSetting || !k.boleh_clock_in) ? "disabled" : ""}><i class="fa-solid fa-right-to-bracket"></i> Clock In</button>
