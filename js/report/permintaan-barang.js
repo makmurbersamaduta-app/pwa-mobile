@@ -23,8 +23,14 @@ const SESSION_FIELDS = {
     nik: ["nik", "nik_karyawan", "username"],
     branch: ["branchId", "branch_id"],
     department: ["depId", "department_id", "departemenId", "departemen_id"],
-    area: ["areaId", "area_id"]
+    area: ["areaId", "area_id"],
+    role: ["roleId", "role_id"]   // PERLU DICEK: nama field role di sesi PWA (lihat catatan di chat)
 };
+
+// Role yang BOLEH meminta barang level Manager: 1 Maintenance, 2 Superadmin, 4 Supervisor.
+// Role lain tidak melihat barang level Manager di pencarian.
+// (Database tetap menolak di ga.fn_approval_barang -- ini hanya agar barangnya tidak muncul.)
+const ROLE_BOLEH_BARANG_MANAGER = [1, 2, 4];
 
 const PAGE_SIZE = 30;                    // jumlah kartu per pemuatan
 const MAX_ROWS = 50;                     // batas jumlah barang per permintaan
@@ -152,7 +158,8 @@ function getUser() {
         nik: nik ? String(nik).trim() : null,
         branchId: toInt(findField(s, SESSION_FIELDS.branch)),
         departmentId: toInt(findField(s, SESSION_FIELDS.department)),
-        areaId: toInt(findField(s, SESSION_FIELDS.area))
+        areaId: toInt(findField(s, SESSION_FIELDS.area)),
+        roleId: toInt(findField(s, SESSION_FIELDS.role))   // null kalau sesi tidak memuat role
     };
 }
 
@@ -636,7 +643,7 @@ async function runSuggest(i, term, inputEl) {
         const safe = term.replace(/[\\"]/g, "\\$&");
         const pattern = `"%${safe}%"`;
         const { data, error } = await ga().from("data_barang")
-            .select("kode_barang, nama_barang, satuan, photo_path, kategori_barang_id, is_makassar, is_surabaya")
+            .select("kode_barang, nama_barang, satuan, photo_path, kategori_barang_id, is_makassar, is_surabaya, level_approval")
             .eq("is_active", true)
             .or(`kode_barang.ilike.${pattern},nama_barang.ilike.${pattern}`)
             .order("kode_barang", { ascending: true })
@@ -647,6 +654,13 @@ async function runSuggest(i, term, inputEl) {
         let items = data || [];
         const flagCol = BRANCH_FLAG_COLUMN[branchId];
         if (BATASI_BARANG_PER_CABANG && flagCol) items = items.filter(x => x[flagCol] !== false);
+
+        // Sembunyikan barang level Manager untuk role yang tidak berhak.
+        // Role tidak diketahui (sesi tanpa role) -> tidak difilter; database tetap menolak saat simpan.
+        const roleId = getUser()?.roleId;
+        if (roleId !== null && roleId !== undefined && !ROLE_BOLEH_BARANG_MANAGER.includes(roleId)) {
+            items = items.filter(x => String(x.level_approval || "").trim().toLowerCase() !== "manager");
+        }
 
         const taken = new Set(R.rows.filter((r, idx) => idx !== i && r.item).map(r => r.item.kode_barang));
         const hiddenCount = items.filter(x => taken.has(x.kode_barang)).length;

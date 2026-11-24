@@ -238,6 +238,13 @@
     .ap-btn-confirm.is-correct { background: #d97706; }
     .ap-btn-confirm.is-reject  { background: #dc2626; }
 
+    .ap-section-title { margin: 14px 0 6px; font-size: 0.75rem; font-weight: 700; color: var(--text-muted, #6b7280); text-transform: uppercase; letter-spacing: .03em; }
+    .ap-diff td { font-weight: 700; color: #92400e; background: #fffbeb; }
+    .ap-muted td { color: var(--text-muted, #6b7280); }
+    .ap-tag { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: #fef3c7; color: #92400e; margin-left: 6px; }
+    .ap-note { margin-top: 8px; font-size: 0.74rem; color: var(--text-muted, #6b7280); line-height: 1.4; }
+    .ap-attach-img { max-width: 100%; max-height: 260px; border-radius: 8px; border: 1px solid var(--border-color, #e5e7eb); display: block; }
+    .ap-attach-link { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: #0d6efd; text-decoration: none; }
     .ap-toast {
       position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
       z-index: 1100; max-width: 90%;
@@ -273,8 +280,8 @@
     </div>
 
     <!-- KELOMPOK 4: TAB PERSETUJUAN
-         Satu baris per jenis pengajuan. Baris "Permintaan Barang" berisi daftar
-         pengajuan yang menunggu Anda; baris lain belum aktif (menyusul). -->
+         Satu baris per jenis pengajuan (data-type = request_type di approval_requests).
+         Tiap baris berisi daftar pengajuan yang menunggu keputusan Anda. -->
     <div class="tab-content" id="tabPersetujuan">
       <div class="ap-wrap">
         <div class="ap-msg" id="apMsg" hidden></div>
@@ -289,36 +296,44 @@
           <div class="ap-list" hidden></div>
         </div>
 
-        <div class="ap-group is-soon" data-type="overtime">
-          <button class="ap-group-head" type="button">
-            <span class="ap-group-icon"><i class="fa-regular fa-clock"></i></span>
-            <span class="ap-group-title">Overtime</span>
-            <span class="ap-soon">Segera</span>
-          </button>
-        </div>
-
-        <div class="ap-group is-soon" data-type="time_off">
-          <button class="ap-group-head" type="button">
-            <span class="ap-group-icon"><i class="fa-regular fa-calendar-minus"></i></span>
-            <span class="ap-group-title">Time Off</span>
-            <span class="ap-soon">Segera</span>
-          </button>
-        </div>
-
-        <div class="ap-group is-soon" data-type="change_shift">
-          <button class="ap-group-head" type="button">
-            <span class="ap-group-icon"><i class="fa-solid fa-right-left"></i></span>
-            <span class="ap-group-title">Change Shift</span>
-            <span class="ap-soon">Segera</span>
-          </button>
-        </div>
-
-        <div class="ap-group is-soon" data-type="attendance">
+        <div class="ap-group" data-type="koreksi_absensi">
           <button class="ap-group-head" type="button">
             <span class="ap-group-icon"><i class="fa-solid fa-fingerprint"></i></span>
-            <span class="ap-group-title">Attendance</span>
-            <span class="ap-soon">Segera</span>
+            <span class="ap-group-title">Koreksi Absensi</span>
+            <span class="ap-count" hidden>0</span>
+            <i class="fa-solid fa-chevron-right ap-chevron"></i>
           </button>
+          <div class="ap-list" hidden></div>
+        </div>
+
+        <div class="ap-group" data-type="ubah_jadwal">
+          <button class="ap-group-head" type="button">
+            <span class="ap-group-icon"><i class="fa-solid fa-right-left"></i></span>
+            <span class="ap-group-title">Ubah Jadwal</span>
+            <span class="ap-count" hidden>0</span>
+            <i class="fa-solid fa-chevron-right ap-chevron"></i>
+          </button>
+          <div class="ap-list" hidden></div>
+        </div>
+
+        <div class="ap-group" data-type="lembur">
+          <button class="ap-group-head" type="button">
+            <span class="ap-group-icon"><i class="fa-regular fa-clock"></i></span>
+            <span class="ap-group-title">Lembur</span>
+            <span class="ap-count" hidden>0</span>
+            <i class="fa-solid fa-chevron-right ap-chevron"></i>
+          </button>
+          <div class="ap-list" hidden></div>
+        </div>
+
+        <div class="ap-group" data-type="ijin">
+          <button class="ap-group-head" type="button">
+            <span class="ap-group-icon"><i class="fa-regular fa-calendar-minus"></i></span>
+            <span class="ap-group-title">Ijin (Cuti)</span>
+            <span class="ap-count" hidden>0</span>
+            <i class="fa-solid fa-chevron-right ap-chevron"></i>
+          </button>
+          <div class="ap-list" hidden></div>
         </div>
       </div>
     </div>
@@ -337,27 +352,11 @@
         <div class="ap-loading" id="apModalLoading">Memuat data...</div>
 
         <div id="apModalContent" hidden>
-          <dl class="ap-info">
-            <div><dt>Kode Batch</dt><dd id="apKode">-</dd></div>
-            <div><dt>Tanggal</dt><dd id="apTanggal">-</dd></div>
-            <div><dt>Periode Permintaan</dt><dd id="apPeriode">-</dd></div>
-            <div><dt>Pemohon</dt><dd id="apPemohon">-</dd></div>
-          </dl>
-
-          <div class="ap-table-wrap">
-            <table class="ap-table">
-              <thead>
-                <tr>
-                  <th>Kode Barang</th>
-                  <th>Nama Barang</th>
-                  <th class="num">Qty</th>
-                  <th>Satuan</th>
-                  <th>Foto Barang</th>
-                </tr>
-              </thead>
-              <tbody id="apItems"></tbody>
-            </table>
-          </div>
+          <!-- Diisi inbox.js sesuai request_type: info ringkas, bagian khusus jenis (tabel barang,
+               perbandingan jam absen, dst), dan lampiran -->
+          <dl class="ap-info" id="apInfo"></dl>
+          <div id="apExtra"></div>
+          <div id="apAttach"></div>
 
           <div class="ap-confirm-text" id="apConfirmText" hidden></div>
           <div class="ap-note-wrap" id="apNoteWrap" hidden>

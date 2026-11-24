@@ -114,7 +114,8 @@ function absenFormatDurasi(menit) {
 // Fungsi: memuat daftar kartu dari database. Tiap kartu = satu tanggal jadwal.
 // Kartu digeser ke samping untuk memilih tanggal yang akan diabsen. Tanpa jadwal
 // (Reliver tanpa jadwal assignment, atau tanpa jadwal sama sekali) = tanpa kartu.
-// Kartu yang sudah Clock Out hilang dari daftar. Setelah jadwal berakhir kartu
+// Kartu yang sudah Clock Out hilang dari daftar; bila tidak ada kartu lain, kartu
+// terakhir yang selesai tetap tampil TERKUNCI sampai kartu berikutnya muncul. Setelah jadwal berakhir kartu
 // tetap tampil sampai batas waktunya; hanya tombol Clock In yang terkunci, dan
 // Clock Out tetap boleh walau belum/lupa Clock In.
 // ===================================================
@@ -150,12 +151,13 @@ function absenRenderGagal() {
   track.innerHTML = `<div class="shift-widget absen-kartu"><div class="absen-info absen-info-gagal" data-retry="1">Status absen gagal dimuat. Ketuk di sini untuk mencoba lagi.</div></div>`;
 }
 
-function absenHtmlKartu(k) {
-  const s = absen.status;
+// Bagian jadwal pada kartu (judul, tanggal, shift + jam, lembur); dipakai kartu aktif dan kartu selesai
+function absenHtmlJadwal(k) {
   const label = ({ "-1": "Kemarin", "0": "Hari Ini", "1": "Besok" })[String(absenBedaHari(k.tanggal_kerja))] || "";
   const judul = label ? `Jadwal Shift · ${label}` : "Jadwal Shift";
-  const pulang = k.jam_pulang + (k.lintas_hari ? " (+1)" : "");
-  const adaSetting = !!s.ada_setting;
+  const libur = !k.jam_masuk;   // hari libur: jam masuk/pulang kosong dari database
+  const pulang = libur ? "" : k.jam_pulang + (k.lintas_hari ? " (+1)" : "");
+  const detail = libur ? `${k.nama_shift}` : `${k.nama_shift} · ${k.jam_masuk} - ${pulang}`;
 
   const ob = Number(k.ot_sebelum_jam) || 0, oa = Number(k.ot_sesudah_jam) || 0;
   let lembur = "";
@@ -166,18 +168,26 @@ function absenHtmlKartu(k) {
     lembur = `<div class="absen-lembur"><i class="fa-solid fa-business-time"></i> Lembur ${absenEsc(bagian.join(", "))}</div>`;
   }
 
+  return `<div class="shift-title">${absenEsc(judul)}</div>
+      <div class="shift-time">${absenEsc(absenTglPanjang(k.tanggal_kerja))}</div>
+      <div class="absen-detail">${absenEsc(detail)}</div>
+      ${lembur}`;
+}
+
+function absenHtmlKartu(k) {
+  const s = absen.status;
+  const adaSetting = !!s.ada_setting;
+
   let info = "";
   if (!adaSetting) info = "Anda belum memiliki setting lokasi absen. Hubungi admin.";
   else if (k.sudah_masuk) info = `Clock In tercatat ${absenFormatWaktu(k.waktu_masuk)}.`;
   else if (!k.boleh_clock_in) info = "Waktu Clock In sudah ditutup (jadwal berakhir). Anda masih bisa Clock Out.";
+  else if (!k.jam_masuk) info = "Hari libur. Absen hanya bila Anda bekerja (misalnya lembur).";
 
   return `<div class="shift-widget absen-kartu" data-tgl="${absenEsc(k.tanggal_kerja)}">
     <div class="shift-info">
       <div class="absen-kartu-badge"><span class="shift-badge" data-badge></span></div>
-      <div class="shift-title">${absenEsc(judul)}</div>
-      <div class="shift-time">${absenEsc(absenTglPanjang(k.tanggal_kerja))}</div>
-      <div class="absen-detail">${absenEsc(k.nama_shift)} · ${absenEsc(k.jam_masuk)} - ${absenEsc(pulang)}</div>
-      ${lembur}
+      ${absenHtmlJadwal(k)}
     </div>
     <div class="clock-actions">
       <button type="button" class="btn-clock btn-clock-in" data-aksi="clock_in" ${(!adaSetting || !k.boleh_clock_in) ? "disabled" : ""}><i class="fa-solid fa-right-to-bracket"></i> Clock In</button>
@@ -187,12 +197,31 @@ function absenHtmlKartu(k) {
   </div>`;
 }
 
+// Kartu terakhir yang sudah selesai (Clock Out tercatat): tampil TERKUNCI, kedua tombol mati.
+// Hanya dipakai bila tidak ada kartu aktif (kartu tanggal berikutnya belum waktunya muncul).
+function absenHtmlKartuSelesai(k) {
+  const masuk = k.waktu_masuk ? `Clock In ${absenFormatWaktu(k.waktu_masuk)}` : "Clock In tidak tercatat";
+  const keluar = `Clock Out ${absenFormatWaktu(k.waktu_keluar)}`;
+  return `<div class="shift-widget absen-kartu absen-kartu-selesai" data-tgl="${absenEsc(k.tanggal_kerja)}">
+    <div class="shift-info">
+      <div class="absen-kartu-badge"><span class="shift-badge ok"><i class="fa-solid fa-circle-check me-1"></i>Absen Selesai</span></div>
+      ${absenHtmlJadwal(k)}
+    </div>
+    <div class="clock-actions">
+      <button type="button" class="btn-clock btn-clock-in" disabled><i class="fa-solid fa-lock"></i> Clock In</button>
+      <button type="button" class="btn-clock btn-clock-out" disabled><i class="fa-solid fa-lock"></i> Clock Out</button>
+    </div>
+    <div class="absen-info">${absenEsc(masuk)} · ${absenEsc(keluar)}. Absen tanggal ini sudah selesai.</div>
+  </div>`;
+}
+
 function absenRenderKartu() {
   const wadah = absenEl("absenKartuWadah");
   const track = absenEl("absenTrack");
   const kartu = (absen.status && absen.status.kartu) || [];
+  const selesai = (absen.status && absen.status.kartu_selesai) || null;
 
-  if (kartu.length === 0) {
+  if (kartu.length === 0 && !selesai) {
     // Tanpa jadwal yang bisa diabsen: kartu tidak ditampilkan
     wadah.hidden = true;
     track.innerHTML = "";
@@ -201,6 +230,16 @@ function absenRenderKartu() {
     return;
   }
   wadah.hidden = false;
+
+  if (kartu.length === 0) {
+    // Absen terakhir sudah selesai dan kartu berikutnya belum waktunya muncul:
+    // kartu terakhir tetap tampil tetapi terkunci, agar tidak terklik tanpa sengaja
+    absen.tglDipilih = selesai.tanggal_kerja;
+    track.classList.remove("absen-banyak");
+    track.innerHTML = absenHtmlKartuSelesai(selesai);
+    absenEl("absenDots").innerHTML = "";
+    return;
+  }
 
   // Pertahankan kartu yang sedang dilihat; bila tidak ada, pilih yang perlu Clock Out
   let idx = kartu.findIndex(k => k.tanggal_kerja === absen.tglDipilih);
@@ -224,6 +263,8 @@ function absenRenderKartu() {
 //                     setelah itu "Terlambat N menit" (hidup, mengikuti jam)
 //  - sudah Clock In : berdasarkan jam Clock In yang tercatat
 function absenHitungBadge(k) {
+  // Hari libur tidak punya jam masuk, jadi tidak dinilai tepat waktu/terlambat
+  if (!k.jam_masuk) return { kelas: "libur", ikon: "fa-umbrella-beach", teks: "Hari Libur" };
   if (!k.sudah_masuk && k.boleh_clock_in === false) {
     return { kelas: "telat", ikon: "fa-lock", teks: "Clock In Ditutup" };
   }
@@ -300,7 +341,9 @@ function bukaModalAbsen(tipe, tanggal) {
 
   absenEl("absenJudul").textContent = tipe === "clock_in" ? "Clock In" : "Clock Out";
   absenEl("absenShiftNama").textContent = k.nama_shift;
-  absenEl("absenShiftDetail").textContent = `${absenTglRingkas(k.tanggal_kerja)} (${k.jam_masuk} - ${k.jam_pulang})`;
+  absenEl("absenShiftDetail").textContent = k.jam_masuk
+    ? `${absenTglRingkas(k.tanggal_kerja)} (${k.jam_masuk} - ${k.jam_pulang})`
+    : `${absenTglRingkas(k.tanggal_kerja)} (Hari Libur)`;
   absenTampilError("");
   // Clock Out tanpa Clock In diizinkan, tetapi karyawan diingatkan karena tanggal ini langsung selesai
   absenEl("absenPeringatan").hidden = !(tipe === "clock_out" && !k.sudah_masuk);

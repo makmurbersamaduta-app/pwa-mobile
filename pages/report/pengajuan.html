@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Pengajuan</title>
+
+    <!-- ============================================================
+         KELOMPOK 1: HEAD PWA & STYLE
+         Fungsi: meta PWA, CSS proyek, dan semua gaya halaman (awalan "pg-").
+         Tema Simple Profesional: warna biru #2b6cb0 yang sama dengan halaman
+         Permintaan Barang / Inspeksi, tanpa dekorasi tambahan.
+         Responsif: HP = modal naik dari bawah (bottom sheet);
+         tablet/iPad (lebar >= 768px) = modal di tengah, form 2 kolom,
+         halaman lebih lebar. Kolom isian berukuran 16px agar iPhone/iPad
+         tidak memperbesar layar otomatis saat mengetik.
+         PERLU DICEK: path ../../ disalin dari permintaan-barang.html.
+         ============================================================ -->
+    <link rel="manifest" href="../../manifest.json">
+    <meta name="theme-color" content="#2b6cb0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="stylesheet" href="../../css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --pg-primary: #2b6cb0;
+            --pg-primary-dark: #1e4e8c;
+            --pg-soft: #e1ecf5;
+            --pg-border: #d3dfea;
+            --pg-text: #1f2d3d;
+            --pg-muted: #6b7c93;
+            --pg-danger: #d64545;
+        }
+        [hidden] { display: none !important; }
+
+        /* --- Header: judul + tombol "Ajukan" di kanan --- */
+        .pg-page .page-header { display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid var(--border-color); background: var(--card-bg); }
+        .pg-page .page-header .back-btn { font-size: 1.1rem; color: var(--dark-color); }
+        .pg-page .page-header h1 { font-size: 1rem; font-weight: 700; color: var(--dark-color); }
+        .pg-btn-new { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; background: var(--pg-primary); color: #fff; font-size: 13px; font-weight: 600; font-family: inherit; }
+        .pg-btn-new:disabled { opacity: 0.5; }
+
+        /* --- Daftar kartu pengajuan --- */
+        .pg-list { padding: 12px 14px 90px; }
+        .pg-card { display: flex; gap: 12px; align-items: flex-start; background: #fff; border: 1px solid var(--pg-border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+        .pg-card-icon { flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px; background: var(--pg-soft); color: var(--pg-primary-dark); display: flex; align-items: center; justify-content: center; font-size: 15px; }
+        .pg-card-main { flex: 1; min-width: 0; }
+        .pg-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+        .pg-card-title { font-size: 14.5px; font-weight: 700; color: var(--pg-text); word-break: break-word; }
+        .pg-card-meta { margin-top: 4px; font-size: 12.5px; color: var(--pg-muted); word-break: break-word; }
+        .pg-badge { flex-shrink: 0; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: #e5e7eb; color: #374151; }
+        .pg-badge.diajukan { background: #fef3c7; color: #92400e; }
+        .pg-badge.disetujui { background: #d1fae5; color: #065f46; }
+        .pg-badge.ditolak { background: #fdecec; color: #9b1c1c; }
+        .pg-badge.koreksi { background: #fde4cf; color: #9a3412; }
+        .pg-empty, .pg-loading { text-align: center; padding: 40px 16px; color: var(--pg-muted); font-size: 14px; }
+        .pg-more { display: block; width: 100%; margin: 6px 0 0; padding: 10px; border: 1px solid var(--pg-border); border-radius: 10px; background: #fff; color: var(--pg-primary-dark); font-weight: 600; font-family: inherit; font-size: 14px; }
+
+        /* --- Modal (dipakai pilihan "Ajukan untuk" dan form) --- */
+        .pg-modal { position: fixed; inset: 0; z-index: 1000; display: none; align-items: flex-end; justify-content: center; background: rgba(15, 23, 42, 0.55); }
+        .pg-modal.open { display: flex; }
+        .pg-sheet { display: flex; flex-direction: column; width: 100%; max-width: 640px; max-height: 94vh; max-height: 94dvh; background: #f4f7fb; border-radius: 16px 16px 0 0; overflow: hidden; }
+        .pg-sheet-head { display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding: 14px 16px; background: #fff; border-bottom: 1px solid var(--pg-border); }
+        .pg-sheet-title { margin: 0; flex: 1; font-size: 16px; font-weight: 700; color: var(--pg-text); }
+        .pg-icon-btn { border: none; background: none; font-size: 18px; color: var(--pg-muted); padding: 4px 8px; cursor: pointer; }
+        .pg-sheet-body { flex: 1; overflow-y: auto; padding: 14px 16px; -webkit-overflow-scrolling: touch; }
+        .pg-sheet-foot { display: flex; flex-direction: column-reverse; gap: 10px; flex-shrink: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid var(--pg-border); }
+        .pg-sheet-foot .pg-btn { width: 100%; padding: 13px 20px; font-size: 15px; }
+        .pg-btn { border: 1px solid var(--pg-border); background: #fff; color: var(--pg-text); border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; }
+        .pg-btn.primary { background: var(--pg-primary); border-color: var(--pg-primary); color: #fff; }
+        .pg-btn:disabled { opacity: 0.6; }
+
+        /* --- Pilihan jenis pengajuan --- */
+        .pg-options { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        .pg-option { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; background: #fff; border: 1px solid var(--pg-border); border-radius: 12px; padding: 14px; font-family: inherit; cursor: pointer; }
+        .pg-option:active { background: var(--pg-soft); }
+        .pg-option .pg-card-icon { width: 42px; height: 42px; font-size: 17px; }
+        .pg-option b { display: block; font-size: 15px; color: var(--pg-text); }
+        .pg-option small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--pg-muted); }
+
+        /* --- Isian form --- */
+        .pg-field { margin-bottom: 14px; }
+        .pg-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--pg-muted); margin-bottom: 4px; }
+        .pg-req { color: var(--pg-danger); }
+        .pg-input { width: 100%; box-sizing: border-box; border: 1px solid var(--pg-border); border-radius: 8px; padding: 10px; font-size: 16px; background: #fff; color: var(--pg-text); outline: none; font-family: inherit; min-height: 42px; }
+        .pg-input:focus { border-color: var(--pg-primary); }
+        .pg-input[readonly], .pg-input:disabled { background: #eef2f6; }
+        textarea.pg-input { min-height: 88px; resize: vertical; }
+        .pg-hint { font-size: 12px; color: var(--pg-muted); margin-top: 5px; }
+        .pg-subhead { margin: 18px 0 10px; font-size: 13.5px; font-weight: 700; color: var(--pg-text); }
+        .pg-subhead:first-child { margin-top: 0; }
+        .pg-box { background: #fff; border: 1px solid var(--pg-border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+        .pg-box-title { font-size: 13px; font-weight: 700; color: var(--pg-primary-dark); margin-bottom: 10px; }
+        .pg-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .pg-two > .pg-field { min-width: 0; }
+        .pg-msg { border-radius: 8px; padding: 9px 12px; font-size: 13px; margin-bottom: 12px; white-space: pre-line; line-height: 1.45; }
+        .pg-msg.danger { background: #fdecec; color: #9b1c1c; }
+        .pg-msg.warn { background: #fef3c7; color: #92400e; }
+        .pg-msg.info { background: #e1ecf5; color: #1e4e8c; }
+
+        /* --- Kalender rentang tanggal (Cuti) --- */
+        .pg-cal { background: #fff; border: 1px solid var(--pg-border); border-radius: 10px; padding: 10px; }
+        .pg-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+        .pg-cal-title { font-size: 14.5px; font-weight: 700; color: var(--pg-text); }
+        .pg-cal-nav { width: 36px; height: 36px; border: none; border-radius: 8px; background: var(--pg-soft); color: var(--pg-primary-dark); cursor: pointer; }
+        .pg-cal table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .pg-cal th { padding: 6px 0; font-size: 11.5px; font-weight: 600; color: var(--pg-muted); text-align: center; }
+        .pg-cal td { padding: 2px 0; text-align: center; }
+        .pg-cal td.band { background: var(--pg-soft); }
+        .pg-cal td.band-start { border-radius: 999px 0 0 999px; }
+        .pg-cal td.band-end { border-radius: 0 999px 999px 0; }
+        .pg-cal td.band-start.band-end { border-radius: 999px; }
+        .pg-day { width: 38px; height: 38px; border: none; border-radius: 50%; background: transparent; color: var(--pg-text); font-size: 14px; font-family: inherit; cursor: pointer; }
+        .pg-day.today { font-weight: 800; color: var(--pg-primary-dark); box-shadow: inset 0 0 0 1px var(--pg-primary); }
+        .pg-day.sel { background: var(--pg-primary); color: #fff; box-shadow: none; }
+        .pg-day:disabled { color: #b8c4d2; cursor: not-allowed; }
+        .pg-cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+        .pg-cal-sum { font-size: 12.5px; color: var(--pg-text); }
+        .pg-link-btn { border: none; background: none; color: var(--pg-primary-dark); font-size: 12.5px; font-weight: 600; font-family: inherit; cursor: pointer; white-space: nowrap; }
+
+        .pg-toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 1200; background: #1f2d3d; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13px; max-width: 90vw; text-align: center; display: none; }
+
+
+        /* --- Isian ketuk-untuk-memilih (tanggal / waktu) dengan ikon di kanan --- */
+        .pg-tap { position: relative; cursor: pointer; }
+        .pg-tap .pg-input { padding-right: 40px; cursor: pointer; }
+        .pg-tap-icon { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--pg-muted); font-size: 16px; pointer-events: none; }
+        .pg-count { text-align: right; font-size: 12px; color: var(--pg-muted); margin-top: 4px; }
+
+        /* --- Lampiran: kotak putus-putus dengan tanda + --- */
+        .pg-attach { display: flex; }
+        .pg-attach-add, .pg-attach-item { position: relative; width: 104px; height: 104px; border-radius: 10px; }
+        .pg-attach-add { display: flex; align-items: center; justify-content: center; border: 2px dashed var(--pg-border); background: #fff; color: var(--pg-primary); font-size: 22px; cursor: pointer; }
+        .pg-attach-add:active { background: var(--pg-soft); }
+        .pg-attach-item { border: 1px solid var(--pg-border); background: #fff; overflow: hidden; }
+        .pg-attach-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .pg-attach-file { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px; font-size: 11px; color: var(--pg-text); text-align: center; word-break: break-all; }
+        .pg-attach-file i { font-size: 26px; color: var(--pg-primary-dark); }
+        .pg-attach-del { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border: none; border-radius: 50%; background: rgba(31, 45, 61, 0.75); color: #fff; font-size: 12px; cursor: pointer; }
+
+        /* --- Pemilih tanggal & jam (lembar di atas form) --- */
+        .pg-modal.pg-top { z-index: 1100; }
+        .pg-day:not(:disabled) { font-weight: 600; }
+        .pg-wheels { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; height: 220px; background: #fff; border: 1px solid var(--pg-border); border-radius: 10px; overflow: hidden; }
+        .pg-wheel { width: 90px; height: 220px; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .pg-wheel::-webkit-scrollbar { display: none; }
+        .pg-wheel::before, .pg-wheel::after { content: ""; display: block; height: 88px; }
+        .pg-wheel-item { height: 44px; line-height: 44px; text-align: center; font-size: 18px; color: #9aa8ba; scroll-snap-align: center; cursor: pointer; }
+        .pg-wheel-item.sel { color: var(--pg-text); font-weight: 700; }
+        .pg-wheel-sep { font-size: 20px; font-weight: 700; color: var(--pg-text); }
+        .pg-wheel-band { position: absolute; left: 12px; right: 12px; top: 88px; height: 44px; border-top: 2px solid var(--pg-primary); border-bottom: 2px solid var(--pg-primary); pointer-events: none; }
+
+        /* --- Dropdown dengan kolom cari (Menggantikan) --- */
+        .pg-combo { position: relative; }
+        .pg-combo-panel { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30; background: #fff; border: 1px solid var(--pg-border); border-radius: 10px; box-shadow: 0 8px 24px rgba(31, 45, 61, 0.18); padding: 8px; }
+        .pg-combo-list { max-height: 220px; overflow-y: auto; margin-top: 6px; -webkit-overflow-scrolling: touch; }
+        .pg-combo-item { padding: 10px; font-size: 14px; border-radius: 6px; cursor: pointer; word-break: break-word; }
+        .pg-combo-item:active, .pg-combo-item.sel { background: var(--pg-soft); }
+        .pg-combo-empty { padding: 10px; font-size: 13px; color: var(--pg-muted); }
+
+        /* --- Tablet / iPad: halaman lebih lebar, modal di tengah, pilihan 2 kolom --- */
+        @media (min-width: 768px) {
+            .pg-page.app-container { max-width: 760px; }
+            .pg-list { padding: 16px 20px 90px; }
+            .pg-modal { align-items: center; }
+            .pg-sheet { border-radius: 16px; max-height: 88vh; max-height: 88dvh; }
+            .pg-options { grid-template-columns: 1fr 1fr; }
+            .pg-sheet-foot { flex-direction: row; justify-content: flex-end; }
+            .pg-sheet-foot .pg-btn { width: auto; }
+            .pg-sheet-body { padding: 18px 22px; }
+            .pg-day { width: 44px; height: 44px; font-size: 15px; }
+        }
+        /* HP layar pendek (mode landscape): kolom isian dirapatkan */
+        @media (max-height: 480px) {
+            .pg-sheet { max-height: 100vh; max-height: 100dvh; border-radius: 0; }
+        }
+        /* Satu kolom di HP sempit */
+        @media (max-width: 380px) {
+            .pg-two { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================
+         KELOMPOK 2: HEADER & DAFTAR PENGAJUAN
+         Fungsi: tombol kembali, judul "Pengajuan", tombol "Ajukan".
+         Kartu (jenis, tanggal, status) diisi dinamis oleh pengajuan.js.
+         ============================================================ -->
+    <div class="app-container pg-page">
+        <header class="page-header">
+            <a href="../laporan.html" class="back-btn"><i class="fa-solid fa-arrow-left"></i></a>
+            <h1>Pengajuan</h1>
+            <button type="button" class="pg-btn-new" id="btnAjukan"><i class="fa-solid fa-plus"></i> Ajukan</button>
+        </header>
+
+        <div class="pg-list" id="pgList"></div>
+    </div>
+
+    <!-- ============================================================
+         KELOMPOK 3: MODAL PILIHAN "AJUKAN UNTUK"
+         Fungsi: pilih jenis pengajuan. Tiap pilihan membuka modal form (Kelompok 4).
+         Atribut data-jenis dibaca pengajuan.js (cuti, absensi, shift, lembur).
+         ============================================================ -->
+    <div class="pg-modal" id="pgPick" role="dialog" aria-modal="true" aria-labelledby="pgPickTitle">
+        <div class="pg-sheet">
+            <div class="pg-sheet-head">
+                <h2 class="pg-sheet-title" id="pgPickTitle">Ajukan untuk</h2>
+                <button type="button" class="pg-icon-btn" id="pgPickX" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="pg-sheet-body">
+                <div class="pg-options">
+                    <button type="button" class="pg-option" data-jenis="cuti">
+                        <span class="pg-card-icon"><i class="fa-regular fa-calendar-minus"></i></span>
+                        <span><b>Cuti</b><small>Cuti, izin, atau sakit</small></span>
+                    </button>
+                    <button type="button" class="pg-option" data-jenis="absensi">
+                        <span class="pg-card-icon"><i class="fa-solid fa-fingerprint"></i></span>
+                        <span><b>Absensi</b><small>Koreksi jam Clock In / Clock Out</small></span>
+                    </button>
+                    <button type="button" class="pg-option" data-jenis="shift">
+                        <span class="pg-card-icon"><i class="fa-solid fa-right-left"></i></span>
+                        <span><b>Perubahan Shift</b><small>Ganti shift pada tanggal tertentu</small></span>
+                    </button>
+                    <button type="button" class="pg-option" data-jenis="lembur">
+                        <span class="pg-card-icon"><i class="fa-regular fa-clock"></i></span>
+                        <span><b>Lembur</b><small>Pengganti, Casual, atau Overtime</small></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         KELOMPOK 4: MODAL FORM (satu wadah untuk keempat jenis)
+         Fungsi: isi (#pgFormBody) dibuat oleh pengajuan.js sesuai jenis yang dipilih.
+         Tombol panah kembali ke modal pilihan.
+         ============================================================ -->
+    <div class="pg-modal" id="pgForm" role="dialog" aria-modal="true" aria-labelledby="pgFormTitle">
+        <div class="pg-sheet">
+            <div class="pg-sheet-head">
+                <button type="button" class="pg-icon-btn" id="pgFormBack" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></button>
+                <h2 class="pg-sheet-title" id="pgFormTitle">Pengajuan</h2>
+                <button type="button" class="pg-icon-btn" id="pgFormX" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="pg-sheet-body" id="pgFormScroll">
+                <div class="pg-msg" id="pgMsg" hidden></div>
+                <div id="pgFormBody"></div>
+            </div>
+            <div class="pg-sheet-foot">
+                <button type="button" class="pg-btn" id="pgBtnBatal">Batal</button>
+                <button type="button" class="pg-btn primary" id="pgBtnKirim"><i class="fa-solid fa-paper-plane"></i> Kirim</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         KELOMPOK 4b: PEMILIH TANGGAL & JAM
+         Fungsi: lembar yang muncul di atas form saat kolom tanggal/waktu diketuk.
+         Tanggal = kalender (tanggal yang tidak boleh dipilih berwarna abu-abu);
+         Jam = dua roda (jam : menit). Isinya diatur pengajuan.js (Kelompok 7).
+         ============================================================ -->
+    <div class="pg-modal pg-top" id="pgDate" role="dialog" aria-modal="true" aria-labelledby="pgDateTitle">
+        <div class="pg-sheet">
+            <div class="pg-sheet-head">
+                <h2 class="pg-sheet-title" id="pgDateTitle">Pilih tanggal</h2>
+                <button type="button" class="pg-link-btn" id="pgDateOk">Simpan</button>
+                <button type="button" class="pg-icon-btn" id="pgDateX" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="pg-sheet-body"><div class="pg-cal" id="pgDateCal"></div></div>
+        </div>
+    </div>
+
+    <div class="pg-modal pg-top" id="pgTime" role="dialog" aria-modal="true" aria-labelledby="pgTimeTitle">
+        <div class="pg-sheet">
+            <div class="pg-sheet-head">
+                <h2 class="pg-sheet-title" id="pgTimeTitle">Pilih jam</h2>
+                <button type="button" class="pg-link-btn" id="pgTimeOk">Simpan</button>
+                <button type="button" class="pg-icon-btn" id="pgTimeX" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="pg-sheet-body">
+                <div class="pg-wheels">
+                    <div class="pg-wheel" id="pgWheelH"></div>
+                    <div class="pg-wheel-sep">:</div>
+                    <div class="pg-wheel" id="pgWheelM"></div>
+                    <div class="pg-wheel-band"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pg-toast" id="pgToast"></div>
+
+    <!-- ============================================================
+         KELOMPOK 5: SCRIPT
+         PERLU DICEK: path supabase.js dan pengajuan.js. Samakan dengan
+         halaman PWA lain di folder yang sama (mis. permintaan-barang.html).
+         ============================================================ -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../../js/supabase.js"></script>
+    <script src="../../js/report/pengajuan.js"></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('../../sw.js').catch((err) => console.error('[Service Worker] Gagal:', err));
+            });
+        }
+    </script>
+</body>
+</html>
