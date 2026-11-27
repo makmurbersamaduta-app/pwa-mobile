@@ -361,6 +361,7 @@ async function handleLogin(username, password, isRemember) {
         const userSession = {
             userId: userData.id,
             username: userData.username,
+            employeeUuid: empData.id, // UUID karyawan dari hrd.employees
             fullName: empData.nama || userData.username,
             roleId: userData.role_id,
             depId: assignData?.departemen_id || null, 

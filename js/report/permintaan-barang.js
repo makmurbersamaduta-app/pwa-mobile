@@ -21,6 +21,7 @@ const SESSION_KEY = "pwa_mobile_session";   // key sesi login PWA (JSON)
 // Jika nama di sesi Anda berbeda, tambahkan di daftar yang sesuai.
 const SESSION_FIELDS = {
     nik: ["nik", "nik_karyawan", "username"],
+    employee: ["employeeUuid", "employeeId", "employee_id"],   // ID karyawan (uuid) = pemohon di database
     branch: ["branchId", "branch_id"],
     department: ["depId", "department_id", "departemenId", "departemen_id"],
     area: ["areaId", "area_id"],
@@ -120,7 +121,7 @@ function setBusy(btn, busy, busyText) {
 
 // ===================================================
 // KELOMPOK 4: SESI LOGIN
-// Fungsi: membaca pwa_mobile_session. Dibutuhkan: NIK (pemohon), branch_id,
+// Fungsi: membaca pwa_mobile_session. Dibutuhkan: employeeUuid (pemohon), branch_id,
 // department_id, dan area_id. Jika ada yang tidak ditemukan, pembuatan
 // permintaan dinonaktifkan dengan pesan yang menyebut field mana yang kosong.
 // ===================================================
@@ -154,8 +155,10 @@ function getUser() {
     const s = getSession();
     if (!s) return null;
     const nik = findField(s, SESSION_FIELDS.nik);
+    const emp = findField(s, SESSION_FIELDS.employee);
     return {
         nik: nik ? String(nik).trim() : null,
+        employeeId: emp ? String(emp).trim() : null,   // dipakai sebagai pemohon (uuid)
         branchId: toInt(findField(s, SESSION_FIELDS.branch)),
         departmentId: toInt(findField(s, SESSION_FIELDS.department)),
         areaId: toInt(findField(s, SESSION_FIELDS.area)),
@@ -167,7 +170,7 @@ function getUser() {
 function missingUserFields(u) {
     if (!u) return ["sesi login"];
     const miss = [];
-    if (!u.nik) miss.push("nik");
+    if (!u.employeeId) miss.push("employeeUuid");
     if (u.branchId === null) miss.push("branch_id");
     if (u.departmentId === null) miss.push("department_id");
     if (u.areaId === null) miss.push("area_id");
@@ -184,9 +187,9 @@ document.addEventListener("DOMContentLoaded", () => {
     $("btnBuat").addEventListener("click", openAddModal);
 
     const u = getUser();
-    if (!u || !u.nik) {
+    if (!u || !u.employeeId) {
         $("btnBuat").disabled = true;
-        $("requestList").innerHTML = `<div class="rq-empty">Sesi login tidak ditemukan. Silakan login ulang.</div>`;
+        $("requestList").innerHTML = `<div class="rq-empty">Sesi login tidak ditemukan atau belum memuat ID karyawan. Silakan login ulang.</div>`;
         return;
     }
     const miss = missingUserFields(u);
@@ -203,7 +206,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // ===================================================
 async function loadList(reset) {
     const u = getUser();
-    if (!u || !u.nik || L.loading) return;
+    if (!u || !u.employeeId || L.loading) return;
     const myReq = ++L.reqId;
     L.loading = true;
 
@@ -218,7 +221,7 @@ async function loadList(reset) {
     try {
         let q = ga().from("v_request_card").select("*", { count: "exact" }).eq("is_active", true);
         if (FILTER_PEMOHON_SENDIRI) {
-            q = q.eq("pemohon", u.nik);
+            q = q.eq("pemohon", u.employeeId);
         } else {
             if (u.branchId !== null) q = q.eq("branch_id", u.branchId);
             if (u.departmentId !== null) q = q.eq("department_id", u.departmentId);
@@ -450,12 +453,12 @@ async function openAddModal() {
 // ===================================================
 function canEdit(card) {
     const u = getUser();
-    return !!u && card.pemohon === u.nik && !card.ada_pengiriman && EDITABLE_STATUS.includes(card.status);
+    return !!u && card.pemohon === u.employeeId && !card.ada_pengiriman && EDITABLE_STATUS.includes(card.status);
 }
 
 function editBlockReason(card) {
     const u = getUser();
-    if (!u || card.pemohon !== u.nik) return "Hanya pemohon yang dapat mengubah permintaan ini.";
+    if (!u || card.pemohon !== u.employeeId) return "Hanya pemohon yang dapat mengubah permintaan ini.";
     if (card.ada_pengiriman) return "Tidak dapat diedit: sudah ada pengiriman barang.";
     if (!EDITABLE_STATUS.includes(card.status)) return `Tidak dapat diedit: status "${card.status}".`;
     return "";
@@ -747,7 +750,7 @@ function pickSuggestion(k) {
 // Fungsi: memeriksa isian lalu mengirim SEMUA barang dalam satu panggilan
 // fungsi database. Jika satu barang saja bermasalah, tidak ada yang tersimpan.
 // Database memeriksa ulang semua aturan (termasuk kode barang ganda).
-// Data di belakang layar: pemohon = NIK sesi; cabang, departemen, area dari
+// Data di belakang layar: pemohon = ID karyawan (employeeUuid) sesi; cabang, departemen, area dari
 // sesi; status "Diajukan"; is_active true; kategori dari data_barang.
 // ===================================================
 function collectUsedRows() {
@@ -794,7 +797,7 @@ async function saveAdd() {
         branch_id: u.branchId,
         department_id: u.departmentId,
         area_id: u.areaId,
-        pemohon: u.nik,
+        pemohon: u.employeeId,
         periode,
         items: used.map(({ r }) => ({ kode_barang: r.item.kode_barang, qty: r.qty }))
     };
@@ -823,7 +826,7 @@ async function saveEdit() {
     if (R.saving) return;
     showMsg("", "");
     const u = getUser();
-    if (!u || !u.nik) { showMsg("Sesi login tidak ditemukan. Silakan login ulang.", "danger"); return; }
+    if (!u || !u.employeeId) { showMsg("Sesi login tidak ditemukan atau belum memuat ID karyawan. Silakan login ulang.", "danger"); return; }
 
     const periode = $("rqPeriode").value;
     const { used, errs } = collectUsedRows();
@@ -840,7 +843,7 @@ async function saveEdit() {
 
     const payload = {
         id: R.card.id,
-        pemohon: u.nik,
+        pemohon: u.employeeId,
         periode,
         items: used.map(({ r }) => ({ kode_barang: r.item.kode_barang, qty: r.qty }))
     };

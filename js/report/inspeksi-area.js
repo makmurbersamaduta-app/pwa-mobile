@@ -21,6 +21,14 @@ const TABLE_KATEGORI = "kategori_inspeksi";
 const TABLE_SUB = "sub_kategori_inspeksi";
 const TABLE_EMPLOYEES = "employees";   // hrd.employees: nik_karyawan -> id (uuid) yang disimpan di inspeksi.petugas
 const TABLE_AREA = "areas";            // schema default (public), sama seperti halaman lain
+const TABLE_PELANGGARAN = "pelanggaran";   // Temuan Individu menghasilkan 1 baris Peringatan Lisan di sini
+const TABLE_DEPT = "departments";
+// PERLU DICEK: tabel penempatan karyawan (sama dengan halaman Pelanggaran): cabang, departemen, area, bagian karyawan
+const SCHEMA_ASSIGNMENT = SCHEMA_HRD;
+const TABLE_ASSIGNMENT = "employee_assignments";
+const LISAN_LABEL = "Peringatan Lisan";    // nilai jenis_peringatan untuk Temuan Individu
+const ROLE_IDS_ALL_EMP = [1, 2, 3];        // cari karyawan: semua karyawan aktif. Role lain: hanya departemen yang sama
+const ID_CHUNK = 100;
 
 const SESSION_KEY = "pwa_mobile_session";   // key sesi login PWA (JSON)
 // Nama field di sesi. Skrip mencari field pertama yang ada.
@@ -64,7 +72,14 @@ const S = {
     photos: new Array(MAX_PHOTOS).fill(null),   // tiap kotak: { blob, url } atau null
     pendingSlot: -1,
     saving: false,
-    detailReq: 0
+    detailReq: 0,
+    // --- Temuan Individu ---
+    roleId: null, sessionDept: null, restrictDept: true,
+    deptMap: new Map(),
+    human: false,                      // false = Temuan Team, true = Temuan Individu (kolom is_human)
+    ket: false,                        // Keterangan Tambahan? (Ya = deskripsi pelanggaran diisi sendiri)
+    emp: null,                         // karyawan terpilih { id, nik, nama, asg }
+    partial: null                      // { base, inspeksi } jika temuan tersimpan tetapi Peringatan Lisan gagal
 };
 
 // ===================================================
@@ -176,7 +191,8 @@ function getUser() {
     return {
         nik: nik ? String(nik).trim() : null,
         branchId: toInt(findField(s, SESSION_FIELDS.branch)),
-        deptId: toInt(findField(s, SESSION_FIELDS.department))
+        deptId: toInt(findField(s, SESSION_FIELDS.department)),
+        roleId: toInt(s.roleId)
     };
 }
 
@@ -218,7 +234,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     const u = getUser();
     if (!u || !u.nik) { failPage("Sesi login tidak ditemukan. Silakan login ulang."); return; }
-    console.info("[Inspeksi] nik:", u.nik, "| cabang:", u.branchId, "| dept:", u.deptId);
+    console.info("[Inspeksi] nik:", u.nik, "| cabang:", u.branchId, "| dept:", u.deptId, "| role:", u.roleId);
+    S.roleId = u.roleId;
+    S.sessionDept = u.deptId;
+    S.restrictDept = !ROLE_IDS_ALL_EMP.includes(S.roleId);
 
     try {
         S.employeeId = await resolveEmployeeId(u.nik);
@@ -244,15 +263,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Master kategori, sub kategori, dan area (kecil, dimuat sekali)
 async function loadLookups() {
     const opr = () => supabaseClient.schema(SCHEMA_OPR);
-    const [kat, sub, areas] = await Promise.all([
-        fetchAll((f, t) => opr().from(TABLE_KATEGORI).select("id, kategori_inspeksi, is_active, dept_id").order("kategori_inspeksi").order("id").range(f, t)),
+    const [kat, sub, areas, depts] = await Promise.all([
+        fetchAll((f, t) => opr().from(TABLE_KATEGORI).select("id, kategori_inspeksi, is_active, dept_id, jenis_pelanggaran_id").order("kategori_inspeksi").order("id").range(f, t)),
         fetchAll((f, t) => opr().from(TABLE_SUB).select("id, sub_kategori_inspeksi, is_active, kategori_inspeksi_id, dept_id").order("sub_kategori_inspeksi").order("id").range(f, t)),
-        fetchAll((f, t) => supabaseClient.from(TABLE_AREA).select("id, area_name, branch_id, is_active").order("area_name").order("id").range(f, t))
+        fetchAll((f, t) => supabaseClient.from(TABLE_AREA).select("id, area_name, branch_id, is_active").order("area_name").order("id").range(f, t)),
+        fetchAll((f, t) => supabaseClient.from(TABLE_DEPT).select("id, department_name").order("id").range(f, t))
     ]);
     S.kategori = kat;
     S.sub = sub;
     S.kategoriMap = new Map(kat.map(k => [String(k.id), k.kategori_inspeksi]));
     S.subMap = new Map(sub.map(x => [String(x.id), x.sub_kategori_inspeksi]));
+    S.deptMap = new Map(depts.map(d => [String(d.id), d.department_name]));
     S.areaList = areas;
     S.areaMap = new Map(areas.map(a => [String(a.id), a.area_name]));
 }
@@ -269,7 +290,7 @@ function areaName(id) {
 // Dimuat bertahap (30 per kali). CATATAN: penyaringan "milik sendiri" di sini
 // hanya di sisi aplikasi; pembatasan sebenarnya harus lewat RLS di database.
 // ===================================================
-const LIST_COLUMNS = "id, created_at, branch_id, dept_id, petugas, area_id, kategori_inspeksi_id, sub_kategori_inspeksi_id, deskripsi, lokasi, " + PHOTO_COLUMNS.join(", ");
+const LIST_COLUMNS = "id, created_at, branch_id, dept_id, petugas, is_human, area_id, kategori_inspeksi_id, sub_kategori_inspeksi_id, deskripsi, lokasi, " + PHOTO_COLUMNS.join(", ");
 
 async function loadList(reset) {
     if (!S.employeeId || S.loading) return;
@@ -355,6 +376,19 @@ function setupModal() {
     $("insBtnSimpan").addEventListener("click", () => { if (S.mode === "edit") saveEdit(); else saveAdd(); });
     $("insKategori").addEventListener("change", () => fillTemuanSelect($("insKategori").value));
     $("insFile").addEventListener("change", onFilePicked);
+    // Toggle Temuan Team / Individu dan Keterangan Tambahan Ya / Tidak
+    $("segHuman").addEventListener("click", (e) => { const b = e.target.closest(".ins-seg-btn"); if (b) setHuman(b.dataset.human === "true"); });
+    $("segKet").addEventListener("click", (e) => { const b = e.target.closest(".ins-seg-btn"); if (b) setKet(b.dataset.ket === "true"); });
+    // Pilih karyawan (pointerdown agar terpilih sebelum kolom kehilangan fokus)
+    $("indEmpSearch").addEventListener("input", onEmpInput);
+    $("indEmpClear").addEventListener("click", clearEmployee);
+    $("indEmpList").addEventListener("pointerdown", (e) => {
+        const item = e.target.closest(".ins-suggest-item[data-id]");
+        if (!item || item.classList.contains("disabled")) return;
+        e.preventDefault();
+        chooseEmployee(empOptions.get(item.dataset.id));
+    });
+    document.addEventListener("click", (e) => { if (!e.target.closest(".ins-rel")) $("indEmpList").hidden = true; });
     if (PHOTO_CAPTURE_ONLY) $("insFile").setAttribute("capture", "environment");
 
     // Satu pendengar untuk semua kotak foto (tambah / hapus)
@@ -372,6 +406,9 @@ function openModalShell() {
     document.body.style.overflow = "hidden";
 }
 function closeModal() {
+    const hadPartial = !!S.partial;                    // temuan tersimpan tetapi Peringatan Lisan gagal
+    S.partial = null;
+    $("insBody").classList.remove("ins-locked");
     $("insModal").classList.remove("open");
     document.body.style.overflow = "";
     S.detailReq++;
@@ -379,6 +416,7 @@ function closeModal() {
     S.mode = null;
     S.card = null;
     showMsg("", "");
+    if (hadPartial) { showToast("Temuan tersimpan, tetapi Peringatan Lisan BELUM tersimpan."); loadList(true); }
 }
 
 // Mengatur tombol footer dan isian sesuai mode: add / view / edit
@@ -395,6 +433,9 @@ function applyModeUi() {
     $("insBtnBatal").hidden = view;
     $("insBtnSimpan").hidden = view;
     $("insEditHint").textContent = "";
+    $("segHuman").hidden = !add;
+    $("insJenisTxt").hidden = add;
+    syncIndividuUi();
 }
 
 // ===================================================
@@ -412,6 +453,11 @@ function openAddModal() {
 
     S.mode = "add";
     S.card = null;
+    S.human = false; S.ket = false; S.emp = null; S.partial = null;
+    $("insBody").classList.remove("ins-locked");
+    $("indEmpSearch").value = "";
+    $("indKet").value = "";
+    $("indEmpList").hidden = true;
     clearPhotos();
     $("insDeskripsi").value = "";
     applyModeUi();
@@ -442,6 +488,8 @@ function fillAreaSelect(branchId, selectedId) {
 
 function fillKategoriSelect(deptId, selectedId) {
     let list = S.kategori.filter(k => k.is_active === true && String(k.dept_id) === String(deptId));
+    // Temuan Individu: hanya kategori yang terhubung ke jenis pelanggaran (kolom jenis_pelanggaran_id terisi)
+    if (S.mode === "add" && S.human) list = list.filter(k => k.jenis_pelanggaran_id !== null && k.jenis_pelanggaran_id !== undefined);
     const cur = selectedId ? S.kategori.find(k => String(k.id) === String(selectedId)) : null;
     if (cur && !list.includes(cur)) list = [cur, ...list];
     $("insKategori").innerHTML = `<option value="">Pilih Kategori Temuan</option>` +
@@ -511,6 +559,7 @@ function renderView(card) {
     $("insKategoriTxt").value = S.kategoriMap.get(String(card.kategori_inspeksi_id)) || "-";
     $("insTemuanTxt").value = S.subMap.get(String(card.sub_kategori_inspeksi_id)) || "-";
     $("insDeskripsi").value = card.deskripsi || "";
+    $("insJenisTxt").value = card.is_human ? "Temuan Individu" : "Temuan Team";
     $("insLokasi").value = card.lokasi || "";
     $("wrapLokasi").hidden = !card.lokasi;
     $("insPhotoHint").textContent = "";
@@ -698,6 +747,14 @@ function validateForm() {
     if (!$("insDeskripsi").value.trim()) errs.push("Isi Deskripsi Temuan.");
     const nFoto = S.photos.filter(Boolean).length;
     if (nFoto < MIN_PHOTOS) errs.push(`Tambahkan minimal ${MIN_PHOTOS} foto temuan.`);
+    if (S.mode === "add" && S.human) {                 // Temuan Individu
+        if (!S.emp) errs.push("Pilih Nama Karyawan (Temuan Individu).");
+        const kat = S.kategori.find(k => String(k.id) === $("insKategori").value);
+        if (kat && (kat.jenis_pelanggaran_id === null || kat.jenis_pelanggaran_id === undefined)) {
+            errs.push("Kategori Temuan ini belum terhubung ke jenis pelanggaran, jadi tidak bisa dipakai untuk Temuan Individu.");
+        }
+        if (S.ket && !$("indKet").value.trim()) errs.push("Isi Deskripsi Pelanggaran (Keterangan Tambahan = Ya).");
+    }
     return errs;
 }
 
@@ -712,6 +769,7 @@ async function uploadPhoto(blob, branchId) {
 
 async function saveAdd() {
     if (S.saving || S.mode !== "add") return;
+    if (S.partial) { await retryPelanggaran(); return; }   // temuan sudah tersimpan: ulangi Peringatan Lisan saja
     showMsg("", "");
     const u = getUser();
     const miss = missingUserFields(u);
@@ -743,8 +801,10 @@ async function saveAdd() {
         const failed = results.find(r => r.status === "rejected");
         if (failed) throw new Error("Gagal mengunggah foto: " + (failed.reason?.message || failed.reason));
 
-        // 3) Simpan baris inspeksi
+        // 3) Simpan baris inspeksi. Temuan Individu: ambil id & tanggal baris untuk Peringatan Lisan.
         setBusy(btn, true, "Menyimpan...");
+        const individu = S.human;
+        const base = individu ? buildPelanggaranBase() : null;    // isian Peringatan Lisan dibekukan sebelum menyimpan
         const payload = {
             branch_id: u.branchId,
             dept_id: u.deptId,
@@ -753,17 +813,34 @@ async function saveAdd() {
             kategori_inspeksi_id: parseInt($("insKategori").value, 10),
             sub_kategori_inspeksi_id: parseInt($("insTemuan").value, 10),
             deskripsi: $("insDeskripsi").value.trim(),
+            is_human: individu,
             lokasi: loc ? `${loc.lat.toFixed(6)},${loc.lng.toFixed(6)}` : null
         };
         PHOTO_COLUMNS.forEach((col, i) => { payload[col] = uploaded[i] || null; });
 
-        const { error } = await supabaseClient.schema(SCHEMA_OPR).from(TABLE_INSPEKSI).insert(payload);
+        let q = supabaseClient.schema(SCHEMA_OPR).from(TABLE_INSPEKSI).insert(payload);
+        if (individu) q = q.select("id, created_at");
+        const { data, error } = await q;
         if (error) throw error;
         inserted = true;
 
-        closeModal();
-        showToast("Inspeksi tersimpan.");
-        loadList(true);
+        if (!individu) {
+            closeModal();
+            showToast("Inspeksi tersimpan.");
+            loadList(true);
+            return;
+        }
+
+        // 4) Temuan Individu: simpan Peringatan Lisan (opr.pelanggaran) yang terhubung ke inspeksi ini
+        const row = data && data[0];
+        if (!row) {
+            closeModal();
+            showToast("Temuan tersimpan, tetapi Peringatan Lisan GAGAL dibuat: id inspeksi tidak terbaca (butuh izin SELECT di opr.inspeksi). Hubungi admin.");
+            loadList(true);
+            return;
+        }
+        S.partial = { base, inspeksi: row };
+        await finishPelanggaran();
     } catch (err) {
         console.error("Gagal menyimpan inspeksi:", err);
         if (!inserted && uploaded.length) {
@@ -775,6 +852,177 @@ async function saveAdd() {
         S.saving = false;
         setBusy(btn, false);
     }
+}
+
+// ===================================================
+// KELOMPOK 12B: TEMUAN INDIVIDU (PERINGATAN LISAN)
+// Fungsi: toggle Temuan Team / Individu, pilih karyawan, Keterangan Tambahan, dan
+// penyimpanan 1 baris di opr.pelanggaran untuk karyawan itu.
+// Isian di belakang layar (sama dengan Surat Peringatan): branch_id, dept_id, area_id,
+// bagian_id dari penempatan aktif KARYAWAN; petugas = karyawan login; employee_id &
+// nik_karyawan = karyawan yang dituju; is_active = true. Tambahan khusus:
+//   inspeksi_id = id baris inspeksi (FK)    jenis_peringatan = "Peringatan Lisan"
+//   jenis_pelanggaran_id = dari kategori temuan terpilih (kategori_inspeksi.jenis_pelanggaran_id)
+//   start_date = tanggal inspeksi (menurut zona waktu cabang)    end_date = start_date
+//   deskripsi = isian Keterangan Tambahan (jika "Ya"), jika tidak = Deskripsi Temuan
+// Penyimpanan inspeksi dan pelanggaran adalah 2 langkah terpisah. Jika langkah ke-2
+// gagal, temuan tetap tersimpan, isian dikunci, dan tombol Simpan mengulang langkah ke-2 saja.
+// ===================================================
+let empTimer = null;
+let empReq = 0;
+const empOptions = new Map();
+
+function sanitizeSearch(text) { return String(text || "").replace(/[,()*%\\]/g, " ").replace(/\s+/g, " ").trim(); }
+
+// Menyesuaikan tampilan blok Temuan Individu dengan status S.human / S.ket / S.emp
+function syncIndividuUi() {
+    const add = S.mode === "add";
+    $("wrapIndividu").hidden = !(add && S.human);
+    $("indEmpSearch").hidden = !!S.emp;
+    $("indEmpChosen").hidden = !S.emp;
+    $("wrapKet").hidden = !S.ket;
+    $("indKetHint").hidden = S.ket;
+    $("segHuman").querySelectorAll(".ins-seg-btn").forEach(b => b.classList.toggle("active", (b.dataset.human === "true") === S.human));
+    $("segKet").querySelectorAll(".ins-seg-btn").forEach(b => b.classList.toggle("active", (b.dataset.ket === "true") === S.ket));
+}
+
+function setHuman(v) {
+    if (S.saving || S.partial || S.mode !== "add") return;
+    S.human = v;
+    const u = getUser();
+    fillKategoriSelect(u ? u.deptId : null, null);     // Temuan Individu: hanya kategori yang terhubung ke jenis pelanggaran
+    fillTemuanSelect("", null);
+    syncIndividuUi();
+    showMsg("", "");
+    if (v && $("insKategori").options.length <= 1) {
+        showMsg("Belum ada kategori temuan yang terhubung ke jenis pelanggaran untuk departemen Anda. Hubungi admin.", "info");
+    }
+}
+
+function setKet(v) {
+    if (S.saving || S.partial || S.mode !== "add") return;
+    S.ket = v;
+    syncIndividuUi();
+    if (v) $("indKet").focus();
+}
+
+function onEmpInput() {
+    clearTimeout(empTimer);
+    const q = sanitizeSearch($("indEmpSearch").value);
+    if (q.length < 2) { $("indEmpList").hidden = true; return; }
+    empTimer = setTimeout(() => runEmpSearch(q), 300);
+}
+
+// Penempatan aktif terbaru tiap karyawan: Map(employee_id -> baris penempatan)
+async function fetchAssignments(ids) {
+    const out = new Map();
+    for (let i = 0; i < ids.length; i += ID_CHUNK) {
+        const { data, error } = await supabaseClient.schema(SCHEMA_ASSIGNMENT).from(TABLE_ASSIGNMENT)
+            .select("employee_id, branch_id, departemen_id, area_id, bagian_id, start_date")
+            .in("employee_id", ids.slice(i, i + ID_CHUNK)).eq("is_active", true)
+            .order("start_date", { ascending: false });
+        if (error) throw error;
+        (data || []).forEach(a => { if (!out.has(String(a.employee_id))) out.set(String(a.employee_id), a); });
+    }
+    return out;
+}
+
+// Role 1, 2, 3: semua karyawan aktif. Role lain: hanya yang penempatan aktifnya di departemen yang sama.
+async function runEmpSearch(q) {
+    const my = ++empReq;
+    const list = $("indEmpList");
+    list.hidden = false;
+    list.innerHTML = `<div class="ins-suggest-item disabled">Mencari...</div>`;
+    try {
+        const { data, error } = await supabaseClient.schema(SCHEMA_HRD).from(TABLE_EMPLOYEES).select("id, nik_karyawan, nama")
+            .eq("is_active", true).or(`nama.ilike.*${q}*,nik_karyawan.ilike.*${q}*`)
+            .order("nama").limit(S.restrictDept ? 60 : 20);
+        if (error) throw error;
+        if (my !== empReq) return;
+        const asg = await fetchAssignments((data || []).map(e => e.id));
+        if (my !== empReq) return;
+
+        let items = (data || []).map(e => ({ id: e.id, nik: e.nik_karyawan, nama: e.nama, asg: asg.get(String(e.id)) || null }));
+        if (S.restrictDept) items = items.filter(e => e.asg && String(e.asg.departemen_id) === String(S.sessionDept));
+        items = items.slice(0, 20);
+
+        empOptions.clear();
+        if (items.length === 0) { list.innerHTML = `<div class="ins-suggest-item disabled">Karyawan aktif tidak ditemukan</div>`; return; }
+        list.innerHTML = items.map(e => {
+            empOptions.set(String(e.id), e);
+            const dept = e.asg ? (S.deptMap.get(String(e.asg.departemen_id)) || "") : "";
+            return e.asg
+                ? `<div class="ins-suggest-item" data-id="${esc(e.id)}">${esc(e.nama)}<small>${esc(e.nik)}${dept ? " - " + esc(dept) : ""}</small></div>`
+                : `<div class="ins-suggest-item disabled" data-id="${esc(e.id)}">${esc(e.nama)}<small>${esc(e.nik)} - penempatan aktif tidak ditemukan</small></div>`;
+        }).join("");
+    } catch (err) {
+        if (my !== empReq) return;
+        console.error("Gagal mencari karyawan:", err);
+        list.innerHTML = `<div class="ins-suggest-item disabled">Gagal mencari: ${esc(err.message)}</div>`;
+    }
+}
+
+function chooseEmployee(e) {
+    if (!e || S.partial) return;
+    S.emp = e;
+    $("indEmpList").hidden = true;
+    $("indEmpChosenText").textContent = `${e.nik} - ${e.nama}`;
+    syncIndividuUi();
+}
+
+function clearEmployee() {
+    if (S.partial) return;
+    S.emp = null;
+    $("indEmpSearch").value = "";
+    syncIndividuUi();
+    $("indEmpSearch").focus();
+}
+
+// Isian Peringatan Lisan (tanpa inspeksi_id dan tanggal, yang baru diketahui setelah inspeksi tersimpan)
+function buildPelanggaranBase() {
+    const kat = S.kategori.find(k => String(k.id) === $("insKategori").value);
+    const e = S.emp;
+    return {
+        branch_id: e.asg.branch_id,
+        dept_id: e.asg.departemen_id,
+        area_id: e.asg.area_id,
+        bagian_id: e.asg.bagian_id,
+        petugas: S.employeeId,
+        employee_id: e.id,
+        nik_karyawan: e.nik,
+        jenis_peringatan: LISAN_LABEL,
+        jenis_pelanggaran_id: kat.jenis_pelanggaran_id,
+        deskripsi: S.ket ? $("indKet").value.trim() : $("insDeskripsi").value.trim(),
+        is_active: true
+    };
+}
+
+// Menyimpan Peringatan Lisan. Jika gagal: isian dikunci dan Simpan mengulang langkah ini saja.
+async function finishPelanggaran() {
+    const { base, inspeksi } = S.partial;
+    const u = getUser();
+    try {
+        const startDate = dayKey(new Date(inspeksi.created_at || Date.now()), u ? u.branchId : null);   // tanggal inspeksi
+        const { error } = await supabaseClient.schema(SCHEMA_OPR).from(TABLE_PELANGGARAN)
+            .insert({ ...base, inspeksi_id: inspeksi.id, start_date: startDate, end_date: startDate });
+        if (error) throw error;
+        S.partial = null;
+        closeModal();
+        showToast("Inspeksi dan Peringatan Lisan tersimpan.");
+        loadList(true);
+    } catch (err) {
+        console.error("Gagal menyimpan Peringatan Lisan:", err);
+        $("insBody").classList.add("ins-locked");
+        showMsg(`Temuan inspeksi SUDAH tersimpan, tetapi Peringatan Lisan gagal tersimpan:\n${err.message}\n\nTekan Simpan untuk mencoba lagi (hanya Peringatan Lisan). Jika ditutup, temuan tetap tersimpan tanpa Peringatan Lisan.`, "danger");
+    }
+}
+
+async function retryPelanggaran() {
+    const btn = $("insBtnSimpan");
+    S.saving = true;
+    setBusy(btn, true, "Menyimpan...");
+    try { await finishPelanggaran(); }
+    finally { S.saving = false; setBusy(btn, false); }
 }
 
 // ===================================================

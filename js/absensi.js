@@ -44,6 +44,10 @@ const absen = {
   posisi: null,        // { lat, lng, akurasi }
   watchId: null,
   mengirim: false,
+  pilihManual: false,    // true bila karyawan sendiri menggeser kartu (pilihannya dipertahankan)
+  tutupJam: 12,          // batas tutup kartu (jam sesudah jam selesai jadwal); dari database
+  kartuTampil: [],       // kartu aktif yang sedang digambar (sudah disaring menurut waktu)
+  sigKartu: "",          // tanda daftar kartu yang sedang digambar
   janjiStatus: null    // janji pemuatan status terakhir (dipakai menu beranda)
 };
 
@@ -135,6 +139,8 @@ async function absenMuatStatus() {
     if (error) throw error;
     absen.status = data;
     absen.offsetMs = new Date(data.waktu_server).getTime() - Date.now();
+    const tutup = Number(data.kartu_tutup_sesudah_jam);
+    absen.tutupJam = (data.kartu_tutup_sesudah_jam != null && Number.isFinite(tutup)) ? tutup : 12;
     absenRenderKartu();
   } catch (err) {
     console.error("Gagal memuat status absen:", err);
@@ -215,11 +221,58 @@ function absenHtmlKartuSelesai(k) {
   </div>`;
 }
 
+// Apakah sebuah kartu masih boleh tampil menurut WAKTU SEKARANG (jam server)?
+// Kartu tertutup sendiri setelah (jam selesai efektif + batas tutup), walau karyawan belum
+// Clock Out. Pengecualian: kartu hari libur yang belum Clock In tertutup saat hari itu
+// berakhir. Penyaringan ini juga dilakukan database; di sini diulang agar daftar yang
+// sudah usang di layar tetap menutup tepat waktu.
+function absenKartuBerlaku(k) {
+  const selesai = Date.parse(k.selesai_efektif);
+  const liburBelumMasuk = !k.jam_masuk && !k.sudah_masuk && !k.waktu_keluar;
+  const tutupMs = liburBelumMasuk ? 0 : absen.tutupJam * 3600000;
+  return absenSekarang() <= selesai + tutupMs;
+}
+
+function absenDaftarKartu() {
+  const st = absen.status || {};
+  const aktif = (st.kartu || []).filter(absenKartuBerlaku);
+  if (aktif.length > 0) return { aktif, selesai: null };
+  const sel = st.kartu_selesai && absenKartuBerlaku(st.kartu_selesai) ? st.kartu_selesai : null;
+  return { aktif, selesai: sel };
+}
+
+function absenSignatur(aktif, selesai) {
+  return aktif.map(k => k.tanggal_kerja).join(",") + "|" + (selesai ? selesai.tanggal_kerja : "");
+}
+
+// Kartu yang tampil paling depan bila ada lebih dari satu (kecuali karyawan sudah memilih sendiri):
+//  1. kartu yang jam jadwalnya SEDANG berjalan (bila ada beberapa: yang mulainya paling akhir)
+//  2. kartu bertanggal HARI INI (tanggal lokal karyawan)
+//  3. kartu tanggal terdekat sesudah hari ini
+//  4. kartu terakhir
+// Contoh: kartu tgl 23 dan 24: pukul 22.45 tgl 23 yang depan; pukul 03.00 tgl 24 yang depan.
+function absenIdxDepan(kartu) {
+  const sekarang = absenSekarang();
+  let idx = -1, mulaiTerakhir = -Infinity;
+  kartu.forEach((k, i) => {
+    const m = Date.parse(k.mulai_efektif), e = Date.parse(k.selesai_efektif);
+    if (m <= sekarang && sekarang <= e && m > mulaiTerakhir) { idx = i; mulaiTerakhir = m; }
+  });
+  if (idx >= 0) return idx;
+  const hari = absenTglHariIni();
+  idx = kartu.findIndex(k => k.tanggal_kerja === hari);
+  if (idx >= 0) return idx;
+  idx = kartu.findIndex(k => k.tanggal_kerja > hari);
+  if (idx >= 0) return idx;
+  return kartu.length - 1;
+}
+
 function absenRenderKartu() {
   const wadah = absenEl("absenKartuWadah");
   const track = absenEl("absenTrack");
-  const kartu = (absen.status && absen.status.kartu) || [];
-  const selesai = (absen.status && absen.status.kartu_selesai) || null;
+  const { aktif: kartu, selesai } = absenDaftarKartu();
+  absen.kartuTampil = kartu;
+  absen.sigKartu = absenSignatur(kartu, selesai);
 
   if (kartu.length === 0 && !selesai) {
     // Tanpa jadwal yang bisa diabsen: kartu tidak ditampilkan
@@ -227,6 +280,7 @@ function absenRenderKartu() {
     track.innerHTML = "";
     absenEl("absenDots").innerHTML = "";
     absen.tglDipilih = null;
+    absen.pilihManual = false;
     return;
   }
   wadah.hidden = false;
@@ -235,16 +289,16 @@ function absenRenderKartu() {
     // Absen terakhir sudah selesai dan kartu berikutnya belum waktunya muncul:
     // kartu terakhir tetap tampil tetapi terkunci, agar tidak terklik tanpa sengaja
     absen.tglDipilih = selesai.tanggal_kerja;
+    absen.pilihManual = false;
     track.classList.remove("absen-banyak");
     track.innerHTML = absenHtmlKartuSelesai(selesai);
     absenEl("absenDots").innerHTML = "";
     return;
   }
 
-  // Pertahankan kartu yang sedang dilihat; bila tidak ada, pilih yang perlu Clock Out
-  let idx = kartu.findIndex(k => k.tanggal_kerja === absen.tglDipilih);
-  if (idx < 0) idx = kartu.findIndex(k => k.sudah_masuk);
-  if (idx < 0) idx = 0;
+  // Pilihan karyawan sendiri dipertahankan; selain itu kartu depan ditentukan menurut waktu
+  let idx = absen.pilihManual ? kartu.findIndex(k => k.tanggal_kerja === absen.tglDipilih) : -1;
+  if (idx < 0) { idx = absenIdxDepan(kartu); absen.pilihManual = false; }
   absen.tglDipilih = kartu[idx].tanggal_kerja;
 
   track.classList.toggle("absen-banyak", kartu.length > 1);
@@ -256,6 +310,18 @@ function absenRenderKartu() {
     if (kids[idx]) track.scrollLeft = kids[idx].offsetLeft - kids[0].offsetLeft;
     absenPerbaruiDots();
   });
+}
+
+// Dijalankan tiap 30 detik: menutup kartu yang sudah lewat batas, mengganti kartu depan
+// bila waktunya berganti (selama karyawan belum memilih sendiri), dan memperbarui keterangan
+function absenSegarkanTampilan() {
+  if (!absen.status) return;
+  const { aktif, selesai } = absenDaftarKartu();
+  let perluGambar = absenSignatur(aktif, selesai) !== absen.sigKartu;
+  if (!perluGambar && !absen.pilihManual && aktif.length > 1) {
+    perluGambar = aktif[absenIdxDepan(aktif)].tanggal_kerja !== absen.tglDipilih;
+  }
+  if (perluGambar) absenRenderKartu(); else absenPerbaruiBadge();
 }
 
 // Keterangan di sudut kartu, dihitung dari jam mulai jadwal (termasuk lembur sebelum shift):
@@ -279,7 +345,7 @@ function absenHitungBadge(k) {
 }
 
 function absenPerbaruiBadge() {
-  const kartu = (absen.status && absen.status.kartu) || [];
+  const kartu = absen.kartuTampil || [];
   absenEl("absenTrack").querySelectorAll(".absen-kartu[data-tgl]").forEach(el => {
     const k = kartu.find(x => x.tanggal_kerja === el.dataset.tgl);
     const badge = el.querySelector("[data-badge]");
@@ -313,7 +379,7 @@ function absenIdxTerlihat() {
 }
 
 function absenPerbaruiDots() {
-  const kartu = (absen.status && absen.status.kartu) || [];
+  const kartu = absen.kartuTampil || [];
   const dots = absenEl("absenDots");
   if (kartu.length < 2) { dots.innerHTML = ""; return; }
   const idx = absenIdxTerlihat();
@@ -811,6 +877,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (kartu) bukaModalAbsen(btn.dataset.aksi, kartu.dataset.tgl);
   });
 
+  // Karyawan menggeser kartu sendiri: pilihannya dipertahankan (tidak diganti otomatis)
+  track.addEventListener("pointerdown", (e) => {
+    if (!e.target.closest("button")) absen.pilihManual = true;
+  });
+
   // Titik penanda mengikuti kartu yang sedang terlihat
   let menunggu = false;
   track.addEventListener("scroll", () => {
@@ -829,7 +900,7 @@ document.addEventListener("DOMContentLoaded", () => {
   absenEl("btnPetaCoba").addEventListener("click", bukaPetaAbsen);
 
   // Keterangan "Tepat Waktu / Terlambat" mengikuti jam; kartu dimuat ulang berkala
-  setInterval(absenPerbaruiBadge, 30000);
+  setInterval(absenSegarkanTampilan, 30000);
   setInterval(() => {
     if (!document.hidden && !absen.modalTerbuka && !absen.mengirim) muatStatusAbsen();
   }, ABSEN_REFRESH_MS);

@@ -159,6 +159,24 @@
         .pg-combo-item:active, .pg-combo-item.sel { background: var(--pg-soft); }
         .pg-combo-empty { padding: 10px; font-size: 13px; color: var(--pg-muted); }
 
+        /* --- Kelompok per jenis pengajuan (bisa dibuka / ditutup) --- */
+        .pg-group { background: #fff; border: 1px solid var(--pg-border); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+        .pg-group-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px; border: none; background: #fff; text-align: left; font-family: inherit; cursor: pointer; }
+        .pg-group-head:active { background: #f4f7fb; }
+        .pg-group-icon { flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px; background: var(--pg-soft); color: var(--pg-primary-dark); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+        .pg-group-title { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 700; color: var(--pg-text); }
+        .pg-count { min-width: 24px; padding: 2px 9px; border-radius: 999px; background: var(--pg-soft); color: var(--pg-primary-dark); font-size: 12px; font-weight: 700; text-align: center; }
+        .pg-chevron { color: var(--pg-muted); transition: transform 0.2s; }
+        .pg-group.open .pg-chevron { transform: rotate(90deg); }
+        .pg-group-body { padding: 10px 12px 2px; border-top: 1px solid var(--pg-border); background: #f4f7fb; }
+        .pg-group-body .pg-card { margin-bottom: 10px; }
+
+        /* --- Mode detail (hanya baca): isian terkunci --- */
+        .pg-tap.pg-off { pointer-events: none; }
+        .pg-input:disabled { background: #eef2f6; color: var(--pg-text); -webkit-text-fill-color: var(--pg-text); opacity: 1; }
+        .pg-attach-img { max-width: 100%; max-height: 220px; border-radius: 8px; border: 1px solid var(--pg-border); display: block; }
+        .pg-file-link { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid var(--pg-border); border-radius: 8px; background: #fff; font-size: 13px; font-weight: 600; color: var(--pg-primary-dark); text-decoration: none; }
+
         /* --- Tablet / iPad: halaman lebih lebar, modal di tengah, pilihan 2 kolom --- */
         @media (min-width: 768px) {
             .pg-page.app-container { max-width: 760px; }
@@ -249,7 +267,9 @@
                 <div id="pgFormBody"></div>
             </div>
             <div class="pg-sheet-foot">
+                <button type="button" class="pg-btn" id="pgBtnTutup" hidden>Tutup</button>
                 <button type="button" class="pg-btn" id="pgBtnBatal">Batal</button>
+                <button type="button" class="pg-btn primary" id="pgBtnEdit" hidden><i class="fa-solid fa-pen"></i> Edit</button>
                 <button type="button" class="pg-btn primary" id="pgBtnKirim"><i class="fa-solid fa-paper-plane"></i> Kirim</button>
             </div>
         </div>

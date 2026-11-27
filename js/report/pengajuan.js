@@ -19,7 +19,7 @@ const BUCKET = "hrd";                       // bucket penyimpanan lampiran
 const MAX_FILE_BYTES = 10 * 1024 * 1024;    // batas ukuran file asli: 10 MB
 const IMG_MAX_SIDE = 1600;                  // sisi terpanjang foto setelah dikecilkan (piksel)
 const IMG_QUALITY = 0.75;                   // kualitas JPEG (0-1)
-const PAGE_SIZE = 30;                       // jumlah kartu per pemuatan
+const PAGE_SIZE = 200;                      // jumlah kartu per pemuatan (besar, agar tiap kelompok jenis lengkap)
 const KET_MAX = 200;                        // batas karakter Alasan / Keterangan (sama dengan HRIS referensi)
 const OT_MAX_MENIT = 12 * 60;               // durasi lembur maksimum di pilihan
 const BREAK_MAX_MENIT = 3 * 60;             // durasi istirahat maksimum di pilihan
@@ -48,7 +48,8 @@ const S = {
     saving: false,
     infoReq: 0,                // penanda permintaan info tanggal terbaru
     info: null,                // info tanggal terakhir (shift, waktu absen)
-    edit: null,                // saat mengedit: { id, data } (data dari hrd.pengajuan_ambil)
+    edit: null,                // pengajuan yang dibuka: { id, data, readonly, bisaEdit, status, catatan } (data dari hrd.pengajuan_ambil)
+    open: {},                  // kelompok jenis yang dibuka / ditutup di daftar (jenis -> true/false), default terbuka
     taps: {},                  // id kolom ketuk -> fungsi yang dijalankan saat diketuk
     cache: {}                  // daftar yang dimuat sekali: cuti, shift, karyawan, mitra
 };
@@ -175,7 +176,17 @@ function setupEvents() {
         if (opt) { closeModal("pgPick"); openForm(opt.dataset.jenis); }
     });
     $("pgFormX").addEventListener("click", closeForm);
-    $("pgBtnBatal").addEventListener("click", closeForm);
+    $("pgBtnTutup").addEventListener("click", closeForm);
+    // Batal saat edit = kembali ke tampilan hanya baca; saat pengajuan baru = tutup
+    $("pgBtnBatal").addEventListener("click", () => {
+        if (S.saving) return;
+        if (S.edit && !S.edit.readonly) openForm(S.jenis, { ...S.edit, readonly: true });
+        else closeForm();
+    });
+    // Edit: buka kembali form yang sama dengan isian terbuka
+    $("pgBtnEdit").addEventListener("click", () => {
+        if (S.edit && S.edit.bisaEdit) openForm(S.jenis, { ...S.edit, readonly: false });
+    });
     $("pgFormBack").addEventListener("click", () => { if (S.saving) return; const wasEdit = !!S.edit; closeForm(); if (!wasEdit) openModal("pgPick"); });
     $("pgBtnKirim").addEventListener("click", submitCurrent);
 
@@ -258,10 +269,9 @@ function badgeClass(status) {
 
 function cardHtml(r) {
     const j = JENIS[r.jenis] || { icon: "fa-regular fa-file", label: r.jenis };
-    const edit = r.bisa_edit ? ` data-edit="1" data-jenis="${esc(r.jenis)}" data-id="${esc(r.id)}" style="cursor:pointer"` : "";
     const koreksi = String(r.status || "").toLowerCase() === "koreksi";
     return `
-        <div class="pg-card"${edit}>
+        <div class="pg-card" data-jenis="${esc(r.jenis)}" data-id="${esc(r.id)}" style="cursor:pointer">
             <div class="pg-card-icon"><i class="${esc(j.icon)}"></i></div>
             <div class="pg-card-main">
                 <div class="pg-card-top">
@@ -271,10 +281,14 @@ function cardHtml(r) {
                 <div class="pg-card-meta"><i class="fa-regular fa-calendar"></i> ${esc(fmtRentang(r.tanggal_awal, r.tanggal_akhir))}</div>
                 ${r.keterangan ? `<div class="pg-card-meta">${esc(r.keterangan)}</div>` : ""}
                 ${r.catatan ? `<div class="pg-msg warn" style="margin:8px 0 0"><b>Catatan atasan:</b> ${esc(r.catatan)}</div>` : ""}
-                ${r.bisa_edit ? `<div class="pg-card-meta"><i class="fa-solid fa-pen"></i> ${koreksi ? "Perlu dikoreksi. Ketuk untuk mengedit." : "Ketuk untuk mengedit."}</div>` : ""}
+                ${koreksi ? `<div class="pg-card-meta"><i class="fa-solid fa-triangle-exclamation"></i> Perlu dikoreksi</div>` : ""}
             </div>
         </div>`;
 }
+
+// Kelompok per jenis pengajuan; urutan sama dengan pilihan "Ajukan untuk".
+// Kelompok tanpa data tidak ditampilkan. Buka / tutup diingat selama halaman terbuka.
+const GROUP_ORDER = ["cuti", "absensi", "shift", "lembur"];
 
 function renderList() {
     const box = $("pgList");
@@ -282,23 +296,59 @@ function renderList() {
         box.innerHTML = `<div class="pg-empty">Belum ada pengajuan. Ketuk <b>Ajukan</b> untuk membuat pengajuan baru.</div>`;
         return;
     }
-    box.innerHTML = S.list.map(cardHtml).join("") +
-        (S.hasMore ? `<button type="button" class="pg-more">Muat lebih banyak</button>` : "");
+    let html = "";
+    GROUP_ORDER.forEach((jenis) => {
+        const rows = S.list.filter(r => r.jenis === jenis);
+        if (rows.length === 0) return;
+        const open = S.open[jenis] !== false;          // default terbuka
+        const koreksi = rows.filter(r => String(r.status || "").toLowerCase() === "koreksi").length;
+        html += `
+            <div class="pg-group${open ? " open" : ""}" data-jenis="${jenis}">
+                <button type="button" class="pg-group-head" aria-expanded="${open}">
+                    <span class="pg-group-icon"><i class="${esc(JENIS[jenis].icon)}"></i></span>
+                    <span class="pg-group-title">${esc(JENIS[jenis].label)}</span>
+                    ${koreksi ? `<span class="pg-badge koreksi">${koreksi} perlu koreksi</span>` : ""}
+                    <span class="pg-count">${rows.length}${S.hasMore ? "+" : ""}</span>
+                    <i class="fa-solid fa-chevron-right pg-chevron"></i>
+                </button>
+                <div class="pg-group-body" ${open ? "" : "hidden"}>${rows.map(cardHtml).join("")}</div>
+            </div>`;
+    });
+    if (S.hasMore) html += `<button type="button" class="pg-more">Muat lebih banyak</button>`;
+    box.innerHTML = html;
+}
+
+function toggleGroup(g) {
+    const jenis = g.dataset.jenis;
+    const open = !g.classList.contains("open");
+    S.open[jenis] = open;
+    g.classList.toggle("open", open);
+    g.querySelector(".pg-group-body").hidden = !open;
+    g.querySelector(".pg-group-head").setAttribute("aria-expanded", String(open));
 }
 
 document.addEventListener("click", (e) => {
     if (e.target.closest(".pg-more")) { loadList(false); return; }
-    const card = e.target.closest(".pg-card[data-edit]");
-    if (card) openEdit(card.dataset.jenis, card.dataset.id);
+    const head = e.target.closest(".pg-group-head");
+    if (head) { toggleGroup(head.closest(".pg-group")); return; }
+    const card = e.target.closest(".pg-card[data-jenis]");
+    if (card) {
+        const row = S.list.find(r => r.jenis === card.dataset.jenis && String(r.id) === card.dataset.id);
+        if (row) openDetail(row);
+    }
 });
 
-// Membuka pengajuan milik sendiri untuk diedit (hanya status Diajukan / Koreksi; server memeriksa ulang)
-async function openEdit(jenis, id) {
+// Membuka satu pengajuan milik sendiri dalam keadaan HANYA BACA. Tombol Edit muncul hanya
+// bila status approval-nya Diajukan atau Koreksi (server memeriksa ulang saat disimpan).
+async function openDetail(row) {
     if (S.saving) return;
     try {
-        const { data, error } = await hrd().rpc("pengajuan_ambil", { p_jenis: jenis, p_id: String(id) });
+        const { data, error } = await hrd().rpc("pengajuan_ambil", { p_jenis: row.jenis, p_id: String(row.id) });
         if (error) throw error;
-        openForm(jenis, { id: String(id), data });
+        openForm(row.jenis, {
+            id: String(row.id), data, readonly: true,
+            bisaEdit: !!row.bisa_edit, status: row.status || "", catatan: row.catatan || ""
+        });
     } catch (err) {
         console.error("Gagal membuka pengajuan:", err);
         showToast("Gagal membuka pengajuan: " + err.message);
@@ -331,12 +381,42 @@ function openForm(jenis, edit) {
     S.info = null;
     S.taps = {};
     S.combos = {};
-    $("pgFormTitle").textContent = (S.edit ? "Edit " : "") + JENIS[jenis].label;
     $("pgFormBody").innerHTML = "";
     setMsg("");
     openModal("pgForm");
     $("pgFormScroll").scrollTop = 0;
     HANDLERS[jenis].render();
+    applyFormMode();
+    showStatusMsg();
+}
+
+// Mode form: baru (kosong), detail (hanya baca), atau edit.
+//  Detail : semua isian terkunci, tombol Tutup (+ Edit jika boleh)
+//  Edit   : isian terbuka, tombol Batal (kembali ke detail) dan Kirim
+function applyFormMode() {
+    const ro = !!(S.edit && S.edit.readonly);
+    const body = $("pgFormBody");
+    body.querySelectorAll("select, textarea, input[type=file]").forEach((el) => { el.disabled = ro; });
+    body.querySelectorAll(".pg-tap").forEach((el) => el.classList.toggle("pg-off", ro));
+    body.querySelectorAll(".pg-attach-add, .pg-attach-del").forEach((el) => { el.hidden = ro; });
+    closeCombos();
+
+    $("pgBtnTutup").hidden = !ro;
+    $("pgBtnEdit").hidden = !(ro && S.edit.bisaEdit);
+    $("pgBtnBatal").hidden = ro;
+    $("pgBtnKirim").hidden = ro;
+    $("pgFormTitle").textContent = (S.edit ? (ro ? "Detail " : "Edit ") : "") + JENIS[S.jenis].label;
+}
+
+// Di mode detail: tampilkan status, catatan atasan, dan alasan mengapa tidak bisa diedit
+function showStatusMsg() {
+    if (!(S.edit && S.edit.readonly)) return;
+    const e = S.edit;
+    const baris = [];
+    if (e.status) baris.push(`Status: ${e.status}`);
+    if (e.catatan) baris.push(`Catatan atasan: ${e.catatan}`);
+    if (!e.bisaEdit) baris.push("Pengajuan ini tidak bisa diedit. Untuk mengubahnya, ajukan pengajuan baru.");
+    if (baris.length) setMsg(baris.join("\n"), e.catatan ? "warn" : "info");
 }
 
 function closeForm() {
@@ -676,8 +756,28 @@ function fileFieldHtml(opt) {
 
 // Saat edit: beri tahu bahwa lampiran lama tetap dipakai bila tidak memilih file baru
 function noteAttach(id, path) {
+    if (S.edit && S.edit.readonly) { viewAttachment(id, path); return; }
     if (!path) return;
     $(id + "Box").insertAdjacentHTML("afterend", '<div class="pg-hint">Lampiran sebelumnya tetap dipakai kecuali Anda memilih file baru.</div>');
+}
+
+// Mode detail: lampiran dibuka lewat signed URL (bucket private; izin baca pemilik file)
+async function viewAttachment(id, path) {
+    const box = $(id + "Box");
+    if (!box) return;
+    box.closest(".pg-field").querySelectorAll(".pg-hint").forEach((h) => { h.hidden = true; });
+    if (!path) { box.innerHTML = '<div class="pg-hint">Tidak ada lampiran.</div>'; return; }
+    box.innerHTML = '<div class="pg-hint">Memuat lampiran...</div>';
+    try {
+        const { data, error } = await supabaseClient.storage.from(BUCKET).createSignedUrl(path, 3600);
+        if (error || !data || !data.signedUrl) throw (error || new Error("alamat lampiran tidak tersedia"));
+        const url = data.signedUrl;
+        box.innerHTML = /\.pdf$/i.test(path)
+            ? `<a class="pg-file-link" href="${esc(url)}" target="_blank" rel="noopener"><i class="fa-regular fa-file-pdf"></i> Buka lampiran (PDF)</a>`
+            : `<a href="${esc(url)}" target="_blank" rel="noopener"><img class="pg-attach-img" src="${esc(url)}" alt="Lampiran"></a>`;
+    } catch (err) {
+        box.innerHTML = `<div class="pg-hint">Lampiran gagal dimuat: ${esc(err && err.message ? err.message : err)}</div>`;
+    }
 }
 
 // Menggambar ulang kotak lampiran: tanda + (kosong) atau pratinjau + tombol hapus
