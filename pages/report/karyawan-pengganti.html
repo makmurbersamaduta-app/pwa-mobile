@@ -113,6 +113,38 @@
 
         .kp-toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 1200; background: #1f2d3d; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13px; max-width: 90vw; text-align: center; display: none; }
 
+        /* --- Pilihan jenis karyawan bertugas (Reliver / Reguler) --- */
+        .kp-seg { display: flex; gap: 0; border: 1px solid var(--kp-border); border-radius: 10px; overflow: hidden; background: #fff; }
+        .kp-seg button { flex: 1; padding: 10px 8px; border: none; background: #fff; color: var(--kp-muted); font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; }
+        .kp-seg button + button { border-left: 1px solid var(--kp-border); }
+        .kp-seg button.active { background: var(--kp-primary); color: #fff; }
+        .kp-seg.kp-off { pointer-events: none; opacity: 0.7; }
+
+        /* --- Bagian lembur karyawan reguler --- */
+        .kp-subhead { margin: 18px 0 10px; font-size: 13.5px; font-weight: 700; color: var(--kp-text); }
+        .kp-box { background: #fff; border: 1px solid var(--kp-border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+        .kp-box-title { font-size: 13px; font-weight: 700; color: var(--kp-primary-dark); margin-bottom: 10px; }
+        textarea.kp-input { min-height: 88px; resize: vertical; }
+        .kp-count { text-align: right; font-size: 12px; color: var(--kp-muted); margin-top: 4px; }
+        .kp-attach { display: flex; }
+        .kp-attach-add, .kp-attach-item { position: relative; width: 104px; height: 104px; border-radius: 10px; }
+        .kp-attach-add { display: flex; align-items: center; justify-content: center; border: 2px dashed var(--kp-border); background: #fff; color: var(--kp-primary); font-size: 22px; cursor: pointer; }
+        .kp-attach-item { border: 1px solid var(--kp-border); background: #fff; overflow: hidden; }
+        .kp-attach-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .kp-attach-del { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border: none; border-radius: 50%; background: rgba(31, 45, 61, 0.75); color: #fff; font-size: 12px; cursor: pointer; }
+        .kp-attach-img { max-width: 100%; max-height: 220px; border-radius: 8px; border: 1px solid var(--kp-border); display: block; }
+        .kp-file-link { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid var(--kp-border); border-radius: 8px; background: #fff; font-size: 13px; font-weight: 600; color: var(--kp-primary-dark); text-decoration: none; }
+
+        /* --- Roda jam (durasi lembur) --- */
+        .kp-wheels { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; height: 220px; background: #fff; border: 1px solid var(--kp-border); border-radius: 10px; overflow: hidden; }
+        .kp-wheel { width: 90px; height: 220px; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .kp-wheel::-webkit-scrollbar { display: none; }
+        .kp-wheel::before, .kp-wheel::after { content: ""; display: block; height: 88px; }
+        .kp-wheel-item { height: 44px; line-height: 44px; text-align: center; font-size: 18px; color: #9aa8ba; scroll-snap-align: center; cursor: pointer; }
+        .kp-wheel-item.sel { color: var(--kp-text); font-weight: 700; }
+        .kp-wheel-sep { font-size: 20px; font-weight: 700; color: var(--kp-text); }
+        .kp-wheel-band { position: absolute; left: 12px; right: 12px; top: 88px; height: 44px; border-top: 2px solid var(--kp-primary); border-bottom: 2px solid var(--kp-primary); pointer-events: none; }
+
         /* --- Tablet / iPad --- */
         @media (min-width: 768px) {
             .kp-page.app-container { max-width: 760px; }
@@ -208,6 +240,15 @@
                 <div class="kp-field">
                     <label class="kp-label" for="fShift">Shift Kerja <span class="kp-req">*</span></label>
                     <select class="kp-input" id="fShift"><option value="">Pilih Shift Kerja</option></select>
+                    <div class="kp-hint" id="fShiftHint"></div>
+                </div>
+
+                <div class="kp-field">
+                    <label class="kp-label">Jenis Karyawan Bertugas</label>
+                    <div class="kp-seg" id="segCara" role="group" aria-label="Jenis karyawan bertugas">
+                        <button type="button" class="active" data-cara="reliver">Karyawan Reliver</button>
+                        <button type="button" data-cara="reguler">Karyawan Reguler</button>
+                    </div>
                 </div>
 
                 <div class="kp-field">
@@ -222,7 +263,63 @@
                             <div class="kp-combo-list" id="fBertugasList"></div>
                         </div>
                     </div>
-                    <div class="kp-hint">Karyawan Reliver di departemen Anda.</div>
+                    <div class="kp-hint" id="fBertugasHint">Karyawan Reliver di departemen Anda.</div>
+                </div>
+
+                <!-- Hanya Karyawan Reguler: diisi ke lembur (sama seperti Pengajuan Lembur) -->
+                <div id="wrapLembur" hidden>
+                    <div class="kp-subhead">Lembur Karyawan Reguler</div>
+                    <div class="kp-box">
+                        <div class="kp-box-title">Lembur Sebelum Shift</div>
+                        <div class="kp-two">
+                            <div class="kp-field" style="margin-bottom:0">
+                                <label class="kp-label" for="fObOt">Durasi Lembur</label>
+                                <div class="kp-tap" id="tapObOt" data-dur="fObOt" data-title="Durasi lembur sebelum shift">
+                                    <input type="text" class="kp-input" id="fObOt" readonly inputmode="none" value="00:00" data-value="00:00">
+                                    <i class="fa-regular fa-clock kp-tap-icon"></i>
+                                </div>
+                            </div>
+                            <div class="kp-field" style="margin-bottom:0">
+                                <label class="kp-label" for="fObBrk">Durasi Istirahat</label>
+                                <div class="kp-tap" id="tapObBrk" data-dur="fObBrk" data-title="Durasi istirahat sebelum shift">
+                                    <input type="text" class="kp-input" id="fObBrk" readonly inputmode="none" value="00:00" data-value="00:00">
+                                    <i class="fa-regular fa-clock kp-tap-icon"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="kp-box">
+                        <div class="kp-box-title">Lembur Setelah Shift</div>
+                        <div class="kp-two">
+                            <div class="kp-field" style="margin-bottom:0">
+                                <label class="kp-label" for="fOaOt">Durasi Lembur</label>
+                                <div class="kp-tap" id="tapOaOt" data-dur="fOaOt" data-title="Durasi lembur setelah shift">
+                                    <input type="text" class="kp-input" id="fOaOt" readonly inputmode="none" value="00:00" data-value="00:00">
+                                    <i class="fa-regular fa-clock kp-tap-icon"></i>
+                                </div>
+                            </div>
+                            <div class="kp-field" style="margin-bottom:0">
+                                <label class="kp-label" for="fOaBrk">Durasi Istirahat</label>
+                                <div class="kp-tap" id="tapOaBrk" data-dur="fOaBrk" data-title="Durasi istirahat setelah shift">
+                                    <input type="text" class="kp-input" id="fOaBrk" readonly inputmode="none" value="00:00" data-value="00:00">
+                                    <i class="fa-regular fa-clock kp-tap-icon"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="kp-field">
+                        <label class="kp-label" for="fKet">Keterangan</label>
+                        <textarea class="kp-input" id="fKet" maxlength="200"></textarea>
+                        <div class="kp-count" id="fKetCnt">0/200</div>
+                    </div>
+                    <div class="kp-field">
+                        <label class="kp-label">Lampiran</label>
+                        <div class="kp-attach" id="fFileBox">
+                            <button type="button" class="kp-attach-add" data-attach-add="fFile" aria-label="Tambah file"><i class="fa-solid fa-plus"></i></button>
+                        </div>
+                        <input type="file" id="fFile" accept="image/*" hidden>
+                        <div class="kp-hint" id="fFileHint">Foto, maksimal 10 MB. Foto dikecilkan otomatis sebelum diunggah.</div>
+                    </div>
                 </div>
             </div>
 
@@ -248,6 +345,28 @@
                 <button type="button" class="kp-icon-btn" id="kpDateX" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="kp-sheet-body"><div class="kp-cal" id="kpDateCal"></div></div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         KELOMPOK 4b: PEMILIH DURASI (RODA JAM : MENIT)
+         Fungsi: dipakai untuk durasi lembur dan istirahat Karyawan Reguler (format hh:mm).
+         ============================================================ -->
+    <div class="kp-modal kp-top" id="kpTime" role="dialog" aria-modal="true" aria-labelledby="kpTimeTitle">
+        <div class="kp-sheet">
+            <div class="kp-sheet-head">
+                <h2 class="kp-sheet-title" id="kpTimeTitle">Pilih durasi</h2>
+                <button type="button" class="kp-link-btn" id="kpTimeOk">Simpan</button>
+                <button type="button" class="kp-icon-btn" id="kpTimeX" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="kp-sheet-body">
+                <div class="kp-wheels">
+                    <div class="kp-wheel" id="kpWheelH"></div>
+                    <div class="kp-wheel-sep">:</div>
+                    <div class="kp-wheel" id="kpWheelM"></div>
+                    <div class="kp-wheel-band"></div>
+                </div>
+            </div>
         </div>
     </div>
 
